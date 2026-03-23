@@ -1,0 +1,11 @@
+{
+  "name": "mercedes-explore-api",
+  "version": "1.0.0",
+  "main": "src/functions/*.js",
+  "dependencies": {
+    "@azure/functions": "^4.0.0",
+    "axios": "^1.7.0",
+    "axios-cookiejar-support": "^5.0.0",
+    "tough-cookie": "^4.1.3"
+  }
+}

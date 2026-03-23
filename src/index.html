@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mercedes-Benz Data Explorer</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/protobufjs@7/dist/protobuf.min.js"></script>
+</head>
+<body>
+  <header>
+    <h1>Mercedes-Benz Data Explorer</h1>
+    <p class="subtitle">View vehicle capabilities and logic flow data from the Mercedes-Benz API</p>
+  </header>
+
+  <main>
+    <!-- Login Section -->
+    <section id="login-section" class="card">
+      <h2>Login</h2>
+      <p>Enter your Mercedes Me credentials to fetch vehicle data.</p>
+      <form id="login-form">
+        <div class="form-group">
+          <label for="region">Region</label>
+          <select id="region">
+            <option value="Europe">Europe</option>
+            <option value="North America">North America</option>
+            <option value="Asia-Pacific">Asia-Pacific</option>
+            <option value="China">China</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input type="email" id="email" placeholder="your@email.com" required>
+        </div>
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" placeholder="Password" required>
+        </div>
+        <button type="submit" id="login-btn" class="btn btn-primary">Login</button>
+      </form>
+    </section>
+
+    <!-- Vehicle Selector -->
+    <section id="vehicle-section" class="card hidden">
+      <h2>Select Vehicle</h2>
+      <div class="form-group">
+        <select id="vehicle-select">
+          <option value="">Select a vehicle...</option>
+        </select>
+      </div>
+    </section>
+
+    <!-- Loading -->
+    <div id="loading" class="hidden">
+      <div class="spinner"></div>
+      <p>Fetching vehicle data...</p>
+    </div>
+
+    <!-- Data Section -->
+    <section id="data-section" class="hidden">
+      <!-- Export Buttons -->
+      <div class="export-bar">
+        <button id="copy-btn" class="btn btn-secondary">Copy Table</button>
+        <button id="copy-raw-btn" class="btn btn-secondary">Copy Raw Data</button>
+        <button id="refresh-btn" class="btn btn-secondary">Refresh</button>
+      </div>
+
+      <!-- Capabilities Table -->
+      <div class="card">
+        <h2>Capabilities</h2>
+        <p class="table-description">Vehicle data points mapped to Homey capabilities. Each row shows the capability name, the processed value as displayed in the Homey app, and the corresponding raw API data.</p>
+        <div class="table-wrapper">
+          <table id="capabilities-table">
+            <thead>
+              <tr>
+                <th>Capability Name</th>
+                <th>Homey Value</th>
+                <th>Raw Data Key</th>
+                <th>Raw Value</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Logic Flows Table -->
+      <div class="card">
+        <h2>Logic Flows</h2>
+        <p class="table-description">Homey flow cards available for this vehicle. Actions can be triggered, conditions can be checked, and triggers fire automatically when vehicle state changes.</p>
+        <div class="table-wrapper">
+          <table id="flows-table">
+            <thead>
+              <tr>
+                <th>Flow Name</th>
+                <th>Type</th>
+                <th>ID</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Progress Log -->
+  <footer>
+    <div class="card">
+      <h3>Progress Log</h3>
+      <div id="progress-log"></div>
+    </div>
+  </footer>
+
+  <!-- Scripts (order matters: config first, then data, then utilities, then app.js last) -->
+  <script src="js/config.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/proto.js"></script>
+  <script src="js/tables.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
