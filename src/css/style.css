@@ -275,6 +275,16 @@ footer {
   font-weight: 500;
 }
 
+/* Not-reported rows (capabilities absent from this vehicle's API data) */
+.row-not-reported td {
+  opacity: 0.45;
+}
+
+.not-reported {
+  font-style: italic;
+  color: #999;
+}
+
 /* Hidden utility */
 .hidden {
   display: none !important;

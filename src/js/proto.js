@@ -60,11 +60,17 @@ class ProtoParser {
       let value = null;
 
       // Special handling for tire pressure - convert kPa to bar
+      // Mercedes numeric values (intValue/doubleValue) are in kPa (e.g., 290 kPa = 2.9 bar)
+      // displayValue is already in bar (e.g., "2.9")
       if (key.includes('tirepressure')) {
-        if (attribute.displayValue) {
+        if (attribute.doubleValue !== undefined && attribute.doubleValue !== null) {
+          value = attribute.doubleValue / 100; // kPa to bar
+        } else if (attribute.intValue !== undefined && attribute.intValue !== null) {
+          value = attribute.intValue / 100; // kPa to bar
+        } else if (attribute.displayValue) {
           const match = attribute.displayValue.match(/[\d.]+/);
           if (match) {
-            value = parseFloat(match[0]) / 100; // kPa to bar
+            value = parseFloat(match[0]); // already in bar
           } else {
             value = attribute.displayValue;
           }

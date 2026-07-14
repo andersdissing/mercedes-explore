@@ -22,24 +22,34 @@ function renderCapabilitiesTable(vehicleData) {
       rawValue = vehicleData[camelKey];
     }
 
-    if (rawValue === undefined) continue;
+    const notReported = rawValue === undefined;
 
-    hasData = true;
-    let homeyValue;
-    try {
-      homeyValue = cap.transform(rawValue);
-    } catch (e) {
-      homeyValue = String(rawValue);
+    if (!notReported) hasData = true;
+
+    let displayValue = '';
+    let rawDisplay = '';
+    if (notReported) {
+      displayValue = '<span class="not-reported">Not reported by vehicle</span>';
+      rawDisplay = '<span class="not-reported">—</span>';
+    } else {
+      let homeyValue;
+      try {
+        homeyValue = cap.transform(rawValue);
+      } catch (e) {
+        homeyValue = String(rawValue);
+      }
+      const formatted = cap.unit ? `${homeyValue} ${cap.unit}` : String(homeyValue);
+      displayValue = escapeHtml(formatted);
+      rawDisplay = `<code>${escapeHtml(String(rawValue))}</code>`;
     }
 
-    const displayValue = cap.unit ? `${homeyValue} ${cap.unit}` : String(homeyValue);
-
     const tr = document.createElement('tr');
+    if (notReported) tr.classList.add('row-not-reported');
     tr.innerHTML = `
       <td>${escapeHtml(cap.title)}</td>
-      <td>${escapeHtml(displayValue)}</td>
+      <td>${displayValue}</td>
       <td><code>${escapeHtml(rawKey)}</code></td>
-      <td><code>${escapeHtml(String(rawValue))}</code></td>
+      <td>${rawDisplay}</td>
     `;
     tbody.appendChild(tr);
   }

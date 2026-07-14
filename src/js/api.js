@@ -18,13 +18,14 @@ class MercedesAPI {
       'X-SessionId': this.sessionId,
       'X-TrackingId': crypto.randomUUID().toUpperCase(),
       'X-ApplicationName': 'mycar-store-ece',
-      'ris-application-version': '1.63.0 (3044)',
+      'ris-application-version': '1.65.1 (3174)',
       'ris-os-name': 'ios',
       'ris-os-version': '26.3',
-      'ris-sdk-version': '3.26.2',
+      'ris-sdk-version': '4.4.2',
       'X-Locale': 'en-GB',
       'Content-Type': 'application/json; charset=UTF-8',
-      'Accept': 'application/json'
+      'Accept': 'application/json',
+      'User-Agent': 'Mercedes-Benz/3174 CFNetwork/3860.400.22 Darwin/25.3.0'
     };
   }
 
