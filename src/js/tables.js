@@ -114,6 +114,47 @@ function renderCapabilitiesTable(vehicleData) {
 }
 
 /**
+ * Render the table of raw attributes that no Homey capability reads
+ */
+function renderUnmappedTable(vehicleData) {
+  const tbody = document.querySelector('#unmapped-table tbody');
+  tbody.innerHTML = '';
+
+  // Every attribute name any capability mapping can read (case-insensitive)
+  const mapped = new Set();
+  for (const cap of CAPABILITY_MAPPINGS) {
+    for (const key of cap.rawKeys || (cap.rawKey ? [cap.rawKey] : [])) {
+      mapped.add(key.toLowerCase());
+    }
+  }
+  const meta = new Set(['vin', 'timestamp', 'full_update']);
+
+  const unmapped = Object.keys(vehicleData)
+    .filter(key => !meta.has(key) && !key.endsWith('_display') && !key.endsWith('_unit'))
+    .filter(key => !mapped.has(key.toLowerCase()))
+    .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+
+  for (const key of unmapped) {
+    const display = vehicleData[`${key}_display`];
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><code>${escapeHtml(key)}</code></td>
+      <td><code>${escapeHtml(formatRaw(vehicleData[key]))}</code></td>
+      <td>${display !== undefined ? escapeHtml(String(display)) : '<span class="not-reported">—</span>'}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  if (unmapped.length === 0) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td colspan="3" class="no-data">Every attribute received is read by a Homey capability</td>';
+    tbody.appendChild(tr);
+  }
+
+  progressLog(`${unmapped.length} attribute(s) received that no Homey capability reads`);
+}
+
+/**
  * Render the logic flows table
  */
 function renderFlowsTable() {

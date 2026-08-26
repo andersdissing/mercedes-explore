@@ -156,6 +156,7 @@ async function loadVehicleData(vin) {
 
     // Render tables
     renderCapabilitiesTable(vehicleData);
+    renderUnmappedTable(vehicleData);
     renderFlowsTable();
 
     // Show data section
@@ -186,6 +187,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Copy buttons
   document.getElementById('copy-btn').addEventListener('click', copyTableToClipboard);
   document.getElementById('copy-raw-btn').addEventListener('click', copyRawDataToClipboard);
+  document.getElementById('copy-raw-api-btn').addEventListener('click', copyRawApiToClipboard);
 
   // Refresh button
   document.getElementById('refresh-btn').addEventListener('click', handleRefresh);

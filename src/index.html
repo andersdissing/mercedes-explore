@@ -63,6 +63,7 @@
       <div class="export-bar">
         <button id="copy-btn" class="btn btn-secondary">Copy Table</button>
         <button id="copy-raw-btn" class="btn btn-secondary">Copy Raw Data</button>
+        <button id="copy-raw-api-btn" class="btn btn-secondary">Copy All Raw Attributes</button>
         <button id="refresh-btn" class="btn btn-secondary">Refresh</button>
       </div>
 
@@ -78,6 +79,24 @@
                 <th>Homey Value</th>
                 <th>Raw Data Key</th>
                 <th>Raw Value</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Unmapped Attributes Table -->
+      <div class="card">
+        <h2>Unmapped Raw Attributes</h2>
+        <p class="table-description">Attributes the Mercedes API returned for this vehicle that no Homey capability reads. These are candidates for new capabilities in the Homey app. Only attributes that carried a value are listed; the REST endpoint this tool reads returns a subset of what the Homey app receives over its push connection, so the list is not exhaustive.</p>
+        <div class="table-wrapper">
+          <table id="unmapped-table">
+            <thead>
+              <tr>
+                <th>Raw Data Key</th>
+                <th>Raw Value</th>
+                <th>Display Value</th>
               </tr>
             </thead>
             <tbody></tbody>
