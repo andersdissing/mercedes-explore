@@ -1,5 +1,5 @@
 // Mercedes-Benz Vehicle Events Protocol Buffer Definition
-// Minimal version for browser app - extracted from mbapi2020 HA integration
+// Minimal version for Homey Pro app - extracted from mbapi2020 HA integration
 
 syntax = "proto3";
 
@@ -13,6 +13,164 @@ message VEPUpdate {
   int64 emit_timestamp = 10;
   int64 emit_timestamp_in_ms = 14;
   map<string, VehicleAttributeStatus> attributes = 11;
+}
+
+// ChargeProgramsValue - the `chargePrograms` attribute, one entry per charge
+// program. Vehicles that report nil for the top-level `maxSoc` attribute carry
+// the real setting here, per program, which is also how it is written back
+// (ChargeProgramConfigure takes a charge_program and a max_soc).
+//
+// Field numbers recovered from a live payload rather than an upstream schema -
+// see _describeRawAttribute(). Only the two fields the app uses are declared;
+// entries also carry a field 9 whose meaning is unknown and which arrives empty.
+message ChargeProgramParameters {
+  int32 charge_program = 1;
+  int32 max_soc = 2;
+}
+
+message ChargeProgramsValue {
+  repeated ChargeProgramParameters charge_program_parameters = 1;
+}
+
+// TemperaturePointsValue - the `temperaturePoints` attribute: the cabin
+// setpoint, one entry per zone.
+//
+// Field numbers recovered from a live payload (issue #61), then confirmed
+// byte-for-byte against a second capture. Fields 1 and 2 match
+// TemperatureConfigure's TemperaturePoint in vehicle-commands.proto exactly -
+// same zone string, same celsius double - so this is the read side of a value
+// the app already knows how to write. Field 3 is the same temperature formatted
+// for display ("21.5" beside the double 21.5) and has no command-side
+// counterpart.
+//
+// The unit is not in here: temperaturePoints also sets temperature_unit
+// (field 16) on the attribute itself, which is why `temperaturePoints_unit`
+// reached the device all along while the value did not.
+//
+// Deliberately not named TemperaturePoint. The command-side message of that
+// name has no field 3, both files declare `package proto`, and they stay apart
+// only because they happen to be loaded into separate roots - two different
+// messages sharing a fully-qualified name would collide on the first import.
+message VehicleTemperaturePoint {
+  string zone = 1;  // frontLeft, frontRight, rearLeft, rearRight
+  double temperature_in_celsius = 2;
+  string display_value = 3;
+}
+
+message TemperaturePointsValue {
+  repeated VehicleTemperaturePoint temperature_points = 1;
+}
+
+// WeeklySetHUValue - the `weeklySetHU` attribute, one entry per day.
+//
+// Field numbers recovered from a live payload. A capture carried five entries
+// indexed 0 through 4, every one holding 380.
+//
+// 380 read as minutes from midnight is 06:20 - and minutes from midnight is
+// already the unit on both sides of this app's departure time: device.js
+// renders `departuretime` that way, and ZevPrecondStart.departure_time is
+// written that way. So this is very likely the weekly departure schedule, whose
+// write path exists (configure_departure_time in DEPARTURE_WEEKLY mode) with no
+// read path until now.
+//
+// Named `index` rather than `day` because the mapping to weekdays is inferred,
+// not observed. The same five indices appear in weeklyProfile's field 4, which
+// corroborates that they are days but does not say which.
+message WeeklySetEntry {
+  int32 index = 1;
+  int32 minutes_from_midnight = 2;
+}
+
+message WeeklySetHUValue {
+  repeated WeeklySetEntry entries = 1;
+}
+
+// PrecondStateValue - the `precondState` attribute.
+//
+// Layout from mbapi2020's compiled descriptor (vehicle_events_pb2.py,
+// message PrecondState):
+//
+//   1  bool activation_state
+//   2  repeated PrecondStateType precond_state_types   (enum, not decoded)
+//   3  bool precond_immediate_support
+//
+// The one varint ever observed here was field 3 = 1 on an idle car, and it
+// was read as "the state" for a while. It is the car saying it supports an
+// immediate preheat. The running flag is field 1, which proto3 omits when
+// false - which is why an idle car never showed it. The parser exposes
+// activation_state as the attribute's value; lib/precond-status.js ORs it
+// with precondNow and precondActive, as mbapi2020's precondStatus does.
+message PrecondStateValue {
+  bool activation_state = 1;
+  bool precond_immediate_support = 3;
+}
+
+// Wire-compatible stand-in for google.protobuf.Int32Value - a single int32 at
+// field 1, the shape Mercedes uses for an optional number. Named distinctly from
+// vehicle-commands.proto's Int32Value for the same reason as
+// VehicleTemperaturePoint: same package, different roots by convention only.
+message OptionalInt32 {
+  int32 value = 1;
+}
+
+// WeeklyProfileValue - the `weeklyProfile` attribute.
+//
+// Nothing consumes this and no field's meaning is established, so the fields are
+// named for their numbers rather than given invented names ("unknown4" is field 4). Renaming them is the
+// job of whoever works out what they are; the point of declaring it now is that
+// the value stops being discarded.
+//
+// What a capture showed, for whoever picks it up:
+//
+//   field 2 = 21, field 4 = 5          plain counts or ids
+//   fields 3, 5 and entry field 6      -1 as int64, so almost certainly "unset"
+//                                      rather than a real value
+//   entry field 4 = 0x0001020304       either packed varints [0,1,2,3,4] or an
+//                                      opaque blob - indistinguishable on the
+//                                      wire, every byte being under 0x80. Typed
+//                                      as bytes so nothing is lost either way.
+//                                      Those five values match weeklySetHU's
+//                                      five entry indices, which suggests days.
+//   entry fields 7, 8, 9 = 6, 20, 1    each wrapped in the Int32Value shape
+//
+// Field 6 is declared repeated on one observation of a single entry: a weekly
+// profile plausibly carries more, and repeated decodes one occurrence correctly
+// while a singular field would silently keep only the last of several.
+message WeeklyProfileEntry {
+  int32 unknown1 = 1;
+  bytes unknown4 = 4;
+  int64 unknown6 = 6;
+  OptionalInt32 unknown7 = 7;
+  OptionalInt32 unknown8 = 8;
+  OptionalInt32 unknown9 = 9;
+}
+
+message WeeklyProfileValue {
+  int32 unknown2 = 2;
+  int64 unknown3 = 3;
+  int32 unknown4 = 4;
+  int64 unknown5 = 5;
+  repeated WeeklyProfileEntry entries = 6;
+}
+
+// Raw mirrors of the push chain, used only to inspect attributes whose value
+// field this schema does not declare. protobufjs discards unknown fields, so an
+// attribute carrying one decodes with no attribute_type set and is dropped with
+// no way to see what it held. Reading the attributes map as opaque bytes works
+// because a sub-message and a bytes field share wire type 2, which lets the
+// parser report the field numbers a real payload actually uses.
+// Field numbers must stay in step with PushMessage/VEPUpdatesByVIN/VEPUpdate.
+message PushMessageRaw {
+  VEPUpdatesByVINRaw vep_updates = 2;
+}
+
+message VEPUpdatesByVINRaw {
+  map<string, VEPUpdateRaw> updates = 1;
+}
+
+message VEPUpdateRaw {
+  string vin = 2;
+  map<string, bytes> attributes = 11;
 }
 
 // VehicleAttributeStatus contains the value and metadata for a single vehicle attribute
@@ -39,6 +197,11 @@ message VehicleAttributeStatus {
   }
 
   // Value types (oneof attribute_type)
+  //
+  // Anything the car sends that is not declared here decodes with no
+  // attribute_type set and is dropped with no value - see extractVehicleData().
+  // The non-scalar entries below were each recovered from a real payload with
+  // tools/inspect-attribute.js rather than from an upstream schema.
   oneof attribute_type {
     int64 int_value = 4;
     bool bool_value = 5;
@@ -46,6 +209,14 @@ message VehicleAttributeStatus {
     double double_value = 7;
     bool nil_value = 8;
     string unsupported_value = 9;
+    TemperaturePointsValue temperature_points_value = 20;
+    WeeklySetHUValue weekly_set_hu_value = 24;
+    WeeklyProfileValue weekly_profile_value = 29;
+    ChargeProgramsValue charge_programs_value = 31;
+    // A bare varint, not a message. Observed as 1 and as 3, so it is a state
+    // rather than a flag; what the values mean is still unknown.
+    int64 tcu_connection_state_low_channel = 38;
+    PrecondStateValue precond_state_value = 44;
   }
 
   // Unit enums
@@ -120,6 +291,7 @@ message VehicleAttributeStatus {
 // WebSocket Messages
 
 // VEPUpdatesByVIN - wrapper for VEP updates from WebSocket
+// CORRECTED: updates is field 1, sequence_number is field 2
 message VEPUpdatesByVIN {
   map<string, VEPUpdate> updates = 1;
   int32 sequence_number = 2;
@@ -138,7 +310,7 @@ message AssignedVehicles {
 // CommandStatusUpdate - individual command status
 message CommandStatusUpdate {
   string request_id = 1;
-  string state = 2;
+  string state = 2;  // INITIATED, ENQUEUED, PROCESSING, FINISHED, FAILED
   repeated string errors = 3;
   int64 timestamp_in_ms = 4;
 }
@@ -190,6 +362,7 @@ message UserDataUpdate {
 }
 
 // PushMessage - incoming WebSocket messages from server
+// CORRECTED FIELD NUMBERS to match HA implementation
 message PushMessage {
   oneof msg {
     VEPUpdate vepUpdate = 1;
@@ -204,23 +377,29 @@ message PushMessage {
 }
 
 // Client acknowledgment messages
+
+// AcknowledgeVEPUpdatesByVIN - acknowledge VEP updates
 message AcknowledgeVEPUpdatesByVIN {
   int32 sequence_number = 1;
 }
 
+// AcknowledgeAppTwinCommandStatusUpdateByVIN - acknowledge command status
 message AcknowledgeAppTwinCommandStatusUpdateByVIN {
   int32 sequence_number = 1;
 }
 
+// AcknowledgeServiceStatusUpdate - acknowledge service status
 message AcknowledgeServiceStatusUpdate {
   int32 sequence_number = 1;
 }
 
+// AcknowledgeUserDataUpdate - acknowledge user data update
 message AcknowledgeUserDataUpdate {
   int32 sequence_number = 1;
 }
 
 // ClientMessage - outgoing messages from client
+// Field numbers MUST match the real Mercedes ClientMessage (from mbapi2020 client_pb2.py)
 message ClientMessage {
   oneof msg {
     AcknowledgeServiceStatusUpdate acknowledge_service_status_update = 13;

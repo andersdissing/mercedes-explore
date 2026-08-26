@@ -312,3 +312,48 @@ footer {
     padding: 0.5rem 0.6rem;
   }
 }
+
+/* Deprecated flow cards */
+.badge-deprecated {
+  background: #fdecea;
+  color: #b71c1c;
+  margin-left: 0.3rem;
+}
+
+.row-deprecated td {
+  opacity: 0.6;
+}
+
+/* Capability ID and explanatory notes under a capability title */
+.cap-id {
+  margin-top: 0.15rem;
+  font-size: 0.8rem;
+}
+
+.note {
+  margin-top: 0.3rem;
+  font-size: 0.78rem;
+  color: #777;
+  line-height: 1.3;
+}
+
+/* Rows whose value comes from somewhere other than the REST vehicle attributes */
+.row-other-source td {
+  opacity: 0.6;
+}
+
+.row-defaulted td {
+  opacity: 0.75;
+}
+
+.other-source {
+  font-style: italic;
+  font-size: 0.8rem;
+  color: #888;
+}
+
+.version-note {
+  font-size: 0.8rem;
+  color: #888;
+  margin-top: 0.25rem;
+}

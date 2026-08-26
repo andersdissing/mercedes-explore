@@ -11,8 +11,8 @@ https://stmercedesexplore01.z6.web.core.windows.net/
 - Log in with your Mercedes Me credentials (OAuth2 PKCE)
 - Fetch vehicle data (protobuf) from the Mercedes-Benz API
 - Display data in two tables:
-  - **Capabilities** - vehicle data points mapped to Homey capabilities (values, raw keys, transforms)
-  - **Logic Flows** - Homey flow cards (actions, conditions, triggers)
+  - **Capabilities** - vehicle data points mapped to Homey capabilities (values, raw keys, transforms, fallback attributes). Lock, door, window and sunroof state only travel over the Homey app's WebSocket push connection and are marked as such - the REST endpoint this tool reads never carries them
+  - **Logic Flows** - Homey flow cards (actions, conditions, triggers) with their arguments, tokens and deprecation status
 - Copy capabilities table or raw key/value data to clipboard
 - Refresh data without re-logging in
 - Progress log showing each step of the login and data fetch process

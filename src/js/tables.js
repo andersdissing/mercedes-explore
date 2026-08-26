@@ -3,6 +3,39 @@
  */
 
 /**
+ * Resolve the raw attribute(s) a capability reads from.
+ * Returns { keys: [...actual keys found], values: {key: value} }
+ */
+function resolveRawValues(cap, vehicleData) {
+  const wanted = cap.rawKeys || (cap.rawKey ? [cap.rawKey] : []);
+  const found = [];
+  for (const key of wanted) {
+    const actual = findRawKey(vehicleData, key);
+    if (actual !== undefined) {
+      found.push(actual);
+      if (!cap.merge) break; // fallback order: first present wins
+    }
+  }
+  const values = {};
+  for (const k of found) values[k] = vehicleData[k];
+  return { keys: found, values };
+}
+
+function formatRaw(value) {
+  if (value !== null && typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
+function formatHomeyValue(value, unit) {
+  if (value === undefined || value === null || Number.isNaN(value)) return '';
+  return unit ? `${value} ${unit}` : String(value);
+}
+
+const NOT_REPORTED = '<span class="not-reported">Not reported by vehicle</span>';
+const PUSH_ONLY = '<span class="not-reported">Not in REST data (push only)</span>';
+const NOT_HERE = '<span class="not-reported">Not available here</span>';
+
+/**
  * Render the capabilities table with vehicle data
  */
 function renderCapabilitiesTable(vehicleData) {
@@ -12,44 +45,63 @@ function renderCapabilitiesTable(vehicleData) {
   let hasData = false;
 
   for (const cap of CAPABILITY_MAPPINGS) {
-    // Try to find the raw value - check multiple possible key formats
-    const rawKey = cap.rawKey;
-    let rawValue = vehicleData[rawKey];
+    const { keys, values } = resolveRawValues(cap, vehicleData);
+    const notReported = keys.length === 0;
+    const wanted = cap.rawKeys || (cap.rawKey ? [cap.rawKey] : []);
 
-    // Also try camelCase variants
-    if (rawValue === undefined) {
-      const camelKey = rawKey.charAt(0).toUpperCase() + rawKey.slice(1);
-      rawValue = vehicleData[camelKey];
-    }
+    let homeyValue;
+    let rawKeyDisplay;
+    let rawValueDisplay;
+    let rowClass = '';
+    let absentText = NOT_REPORTED;
 
-    const notReported = rawValue === undefined;
-
-    if (!notReported) hasData = true;
-
-    let displayValue = '';
-    let rawDisplay = '';
-    if (notReported) {
-      displayValue = '<span class="not-reported">Not reported by vehicle</span>';
-      rawDisplay = '<span class="not-reported">—</span>';
-    } else {
-      let homeyValue;
+    if (!notReported) {
+      hasData = true;
       try {
-        homeyValue = cap.transform(rawValue);
+        homeyValue = cap.merge
+          ? cap.transform(values, keys, vehicleData)
+          : cap.transform(values[keys[0]], keys[0], vehicleData);
       } catch (e) {
-        homeyValue = String(rawValue);
+        homeyValue = formatRaw(values[keys[0]]);
       }
-      const formatted = cap.unit ? `${homeyValue} ${cap.unit}` : String(homeyValue);
-      displayValue = escapeHtml(formatted);
-      rawDisplay = `<code>${escapeHtml(String(rawValue))}</code>`;
+      rawKeyDisplay = keys.map(k => `<code>${escapeHtml(k)}</code>`).join('<br>');
+      rawValueDisplay = keys.map(k => `<code>${escapeHtml(formatRaw(values[k]))}</code>`).join('<br>');
+    } else if (cap.source) {
+      rowClass = 'row-other-source';
+      absentText = NOT_HERE;
+      rawKeyDisplay = `<span class="other-source">${escapeHtml(cap.source)}</span>`;
+      rawValueDisplay = '<span class="not-reported">—</span>';
+    } else {
+      const fallback = cap.whenAbsent ? cap.whenAbsent(vehicleData) : undefined;
+      homeyValue = fallback;
+      if (cap.pushOnly) {
+        rowClass = 'row-other-source';
+        absentText = PUSH_ONLY;
+      } else {
+        rowClass = fallback !== undefined ? 'row-defaulted' : 'row-not-reported';
+      }
+      rawKeyDisplay = wanted.map(k => `<code>${escapeHtml(k)}</code>`).join('<br>');
+      if (cap.pushOnly) rawKeyDisplay += `<div class="other-source">${escapeHtml(PUSH_ONLY_NOTE)}</div>`;
+      rawValueDisplay = '<span class="not-reported">—</span>';
     }
+
+    let valueDisplay;
+    if (homeyValue === undefined || homeyValue === null || homeyValue === '' || Number.isNaN(homeyValue)) {
+      valueDisplay = absentText;
+    } else {
+      valueDisplay = escapeHtml(formatHomeyValue(homeyValue, cap.unit));
+      if (notReported) valueDisplay += ' <span class="note">(default when absent)</span>';
+    }
+
+    const noteHtml = cap.note ? `<div class="note">${escapeHtml(cap.note)}</div>` : '';
 
     const tr = document.createElement('tr');
-    if (notReported) tr.classList.add('row-not-reported');
+    if (rowClass) tr.classList.add(rowClass);
     tr.innerHTML = `
-      <td>${escapeHtml(cap.title)}</td>
-      <td>${displayValue}</td>
-      <td><code>${escapeHtml(rawKey)}</code></td>
-      <td>${rawDisplay}</td>
+      <td><span class="cap-title">${escapeHtml(cap.title)}</span><div class="cap-id"><code>${escapeHtml(cap.id)}</code></div>${noteHtml}</td>
+      <td>${valueDisplay}</td>
+      <td>${rawKeyDisplay}</td>
+      <td>${rawValueDisplay}</td>
     `;
     tbody.appendChild(tr);
   }
@@ -75,12 +127,18 @@ function renderFlowsTable() {
   ];
 
   for (const flow of allFlows) {
+    const extras = [];
+    if (flow.args) extras.push(`<div class="note"><strong>Arguments:</strong> ${escapeHtml(flow.args)}</div>`);
+    if (flow.tokens) extras.push(`<div class="note"><strong>Tokens:</strong> ${escapeHtml(flow.tokens)}</div>`);
+    const deprecated = flow.deprecated ? ' <span class="badge badge-deprecated">Deprecated</span>' : '';
+
     const tr = document.createElement('tr');
+    if (flow.deprecated) tr.classList.add('row-deprecated');
     tr.innerHTML = `
       <td>${escapeHtml(flow.title)}</td>
-      <td><span class="badge badge-${flow.type.toLowerCase()}">${escapeHtml(flow.type)}</span></td>
-      <td>${escapeHtml(flow.id)}</td>
-      <td>${escapeHtml(flow.description)}</td>
+      <td><span class="badge badge-${flow.type.toLowerCase()}">${escapeHtml(flow.type)}</span>${deprecated}</td>
+      <td><code>${escapeHtml(flow.id)}</code></td>
+      <td>${escapeHtml(flow.description)}${extras.join('')}</td>
     `;
     tbody.appendChild(tr);
   }
@@ -90,13 +148,19 @@ function renderFlowsTable() {
  * Copy capabilities table to clipboard as TSV (tab-separated values)
  */
 async function copyTableToClipboard() {
-  let output = 'Capability Name\tHomey Value\tRaw Data Key\tRaw Value\n';
+  let output = 'Capability Name\tCapability ID\tHomey Value\tRaw Data Key\tRaw Value\n';
 
   const capRows = document.querySelectorAll('#capabilities-table tbody tr');
   for (const row of capRows) {
     const cells = row.querySelectorAll('td');
     if (cells.length === 4) {
-      output += `${cells[0].textContent}\t${cells[1].textContent}\t${cells[2].textContent}\t${cells[3].textContent}\n`;
+      const titleEl = cells[0].querySelector('.cap-title');
+      const idEl = cells[0].querySelector('.cap-id');
+      const title = titleEl ? titleEl.textContent.trim() : cells[0].textContent.trim();
+      const id = idEl ? idEl.textContent.trim() : '';
+      const keys = Array.from(cells[2].querySelectorAll('code')).map(c => c.textContent).join(' | ') || cells[2].textContent.trim();
+      const values = Array.from(cells[3].querySelectorAll('code')).map(c => c.textContent).join(' | ') || cells[3].textContent.trim();
+      output += `${title}\t${id}\t${cells[1].textContent.trim()}\t${keys}\t${values}\n`;
     }
   }
 
@@ -108,12 +172,19 @@ async function copyTableToClipboard() {
  */
 async function copyRawDataToClipboard() {
   let output = '';
+  const seen = new Set();
 
   const capRows = document.querySelectorAll('#capabilities-table tbody tr');
   for (const row of capRows) {
     const cells = row.querySelectorAll('td');
     if (cells.length === 4) {
-      output += `${cells[2].textContent} = ${cells[3].textContent}\n`;
+      const keys = Array.from(cells[2].querySelectorAll('code')).map(c => c.textContent);
+      const values = Array.from(cells[3].querySelectorAll('code')).map(c => c.textContent);
+      keys.forEach((key, i) => {
+        if (seen.has(key)) return;
+        seen.add(key);
+        output += `${key} = ${values[i] !== undefined ? values[i] : '—'}\n`;
+      });
     }
   }
 
@@ -148,7 +219,7 @@ async function copyRawApiToClipboard() {
   let output = '';
   const keys = Object.keys(currentVehicleData).sort();
   for (const key of keys) {
-    output += `${key} = ${currentVehicleData[key]}\n`;
+    output += `${key} = ${formatRaw(currentVehicleData[key])}\n`;
   }
   await copyToClipboard(output, 'copy-raw-api-btn', 'Raw API values copied to clipboard');
 }

@@ -11,6 +11,7 @@
   <header>
     <h1>Mercedes-Benz Data Explorer</h1>
     <p class="subtitle">View vehicle capabilities and logic flow data from the Mercedes-Benz API</p>
+    <p class="version-note">Mappings aligned with Homey Mercedes app <span id="homey-app-version"></span></p>
   </header>
 
   <main>
@@ -68,7 +69,7 @@
       <!-- Capabilities Table -->
       <div class="card">
         <h2>Capabilities</h2>
-        <p class="table-description">Vehicle data points mapped to Homey capabilities. Each row shows the capability name, the processed value as displayed in the Homey app, and the corresponding raw API data.</p>
+        <p class="table-description">Vehicle data points mapped to Homey capabilities. Each row shows the capability, the value as the Homey app derives it, and the raw attribute(s) it is read from. Where the Homey app falls back through several attributes, the one actually used is shown. Lock, door, window and sunroof state only travel over the Homey app's WebSocket push connection and never appear in the REST data this tool reads, so those rows are greyed out.</p>
         <div class="table-wrapper">
           <table id="capabilities-table">
             <thead>
@@ -87,7 +88,7 @@
       <!-- Logic Flows Table -->
       <div class="card">
         <h2>Logic Flows</h2>
-        <p class="table-description">Homey flow cards available for this vehicle. Actions can be triggered, conditions can be checked, and triggers fire automatically when vehicle state changes.</p>
+        <p class="table-description">Homey flow cards provided by the app. Actions send commands to the car, conditions check the current capability values, and triggers fire when the vehicle state changes. Arguments and tokens are listed where a card has them; deprecated cards still exist for old flows but no longer work.</p>
         <div class="table-wrapper">
           <table id="flows-table">
             <thead>

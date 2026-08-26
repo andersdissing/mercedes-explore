@@ -174,6 +174,8 @@ async function loadVehicleData(vin) {
  */
 document.addEventListener('DOMContentLoaded', () => {
   progressLog('Mercedes-Benz Data Explorer ready');
+  const versionEl = document.getElementById('homey-app-version');
+  if (versionEl) versionEl.textContent = 'v' + HOMEY_APP_VERSION;
 
   // Login form
   document.getElementById('login-form').addEventListener('submit', handleLogin);
