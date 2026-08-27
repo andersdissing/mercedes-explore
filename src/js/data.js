@@ -19,6 +19,9 @@
  *               reads never carries it
  *   source      Where the value comes from when it is not a vehicle attribute
  *   note        Extra explanation shown under the capability title
+ *   proposed    Not in the Homey app yet: requested in the named GitHub issue.
+ *               Shown with a "Proposed" badge so owners can check whether their
+ *               car reports the attribute the capability would read
  *
  * Attribute lookups are case-insensitive: Mercedes has sent both
  * `precondActive` and `precondactive`, and the Homey app checks both.
@@ -144,6 +147,18 @@ function maxSoc(v, key, data) {
 const GEOFENCE_NOTE = 'Also set from the geofencing violations API, which the Homey app polls separately.';
 const PUSH_ONLY_NOTE = 'Only sent over the WebSocket push connection the Homey app holds; the REST vehicleattributes endpoint this tool reads never carries it.';
 
+// --- proposed: charge flap (GitHub issue #55) ---------------------------------
+// Not in Homey app v1.1.49. The Home Assistant mbapi2020 integration reads
+// chargeFlapDCStatus / chargeFlapACStatus (DOOR_OPTIONS in car.py); the
+// vehicle-info-card and openHAB bindings map the DC flap as 0 = open,
+// 1 = closed, 2 = flap pressed. See todo.md for what the Homey app needs.
+const CHARGE_FLAP_ISSUE = 'Requested in GitHub issue #55 - not in Homey app v' + HOMEY_APP_VERSION;
+const CHARGE_FLAP_STATUS = { 0: 'Open', 1: 'Closed', 2: 'Flap pressed', 3: 'Unknown' };
+const chargeFlapStatus = v => CHARGE_FLAP_STATUS[v] || String(v);
+const CHARGE_FLAP_NOTE = 'Raw 0 = open, 1 = closed, 2 = flap pressed (release button pushed, flap unlatched). '
+  + 'DC flap first, AC flap as fallback, as in the HA mbapi2020 integration. '
+  + 'It may only travel over the push connection like the door states - this row shows whether the REST data carries it.';
+
 // --- capabilities (in the order the Homey device lists them) -----------------
 
 const CAPABILITY_MAPPINGS = [
@@ -218,6 +233,8 @@ const CAPABILITY_MAPPINGS = [
   { id: 'door_rear_right', title: 'Door Rear Right', rawKeys: ['doorstatusrearright', 'doorRearRightStatus'], unit: '', transform: doorStatus, pushOnly: true },
   { id: 'door_trunk', title: 'Trunk', rawKeys: ['decklidstatus', 'trunkStatus'], unit: '', transform: doorStatus, pushOnly: true },
   { id: 'door_hood', title: 'Hood', rawKeys: ['enginehoodstatus', 'hoodStatus'], unit: '', transform: doorStatus, pushOnly: true },
+  { id: 'door_charge_flap', title: 'Charge Flap', rawKeys: ['chargeFlapDCStatus', 'chargeFlapACStatus'], unit: '', transform: chargeFlapStatus,
+    proposed: CHARGE_FLAP_ISSUE, note: CHARGE_FLAP_NOTE },
   { id: 'parking_brake_engaged', title: 'Parking Brake', rawKey: 'parkbrakestatus', unit: '', transform: v => isOn(v) ? 'Engaged' : 'Released' },
   { id: 'alarm_theft', title: 'Theft Alarm', rawKeys: ['theftalarmactive', 'lasttheftwarning'], merge: true, unit: '',
     transform: values => activeInactive(Object.entries(values).some(([k, v]) => k.toLowerCase() === 'theftalarmactive' && (v === true || v === 1))),
@@ -296,6 +313,7 @@ const FLOW_CONDITIONS = [
   { id: 'battery_level', title: 'Battery level is above / is below threshold', description: 'Checks if the battery level is above or below a specified percentage.', args: 'threshold (0-100 %)' },
   { id: 'is_auxheat_active', title: 'Auxiliary heating is / is not active', description: 'Checks if auxiliary heating is currently active.' },
   { id: 'is_in_geofence', title: 'Vehicle is / is not in geofence zone', description: 'Checks if the vehicle is currently inside a specified geofence zone.', args: 'zone_name (text)' },
+  { id: 'charge_flap_open', title: 'Charge flap is open / closed', description: 'Checks if the charge flap is open (door_charge_flap capability).', proposed: CHARGE_FLAP_ISSUE },
 ];
 
 const FLOW_TRIGGERS = [
@@ -317,5 +335,7 @@ const FLOW_TRIGGERS = [
   { id: 'vehicle_alarm', title: 'Vehicle alarm triggered', description: 'Triggers when the theft alarm activates.', tokens: 'reason (last theft warning reason)' },
   { id: 'geofence_entered', title: 'Vehicle entered geofence zone', description: 'Triggers when the geofencing API reports the vehicle entering a zone.', tokens: 'zone_name' },
   { id: 'geofence_left', title: 'Vehicle left geofence zone', description: 'Triggers when the geofencing API reports the vehicle leaving a zone.', tokens: 'zone_name' },
+  { id: 'charge_flap_opened', title: 'Charge flap was opened', description: 'Triggers when the charge flap goes from closed to open.', proposed: CHARGE_FLAP_ISSUE },
+  { id: 'charge_flap_closed', title: 'Charge flap was closed', description: 'Triggers when the charge flap goes from open to closed.', proposed: CHARGE_FLAP_ISSUE },
   { id: 'command_failed', title: 'Vehicle command failed', description: 'Triggers when the car reports that a command did not complete. Mercedes confirms this about 12 seconds after the command is sent, which is after the action card has already finished, so this is how a late failure becomes visible.', tokens: 'command, reason' },
 ];

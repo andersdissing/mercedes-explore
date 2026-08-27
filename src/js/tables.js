@@ -94,11 +94,13 @@ function renderCapabilitiesTable(vehicleData) {
     }
 
     const noteHtml = cap.note ? `<div class="note">${escapeHtml(cap.note)}</div>` : '';
+    const proposedHtml = cap.proposed ? ` <span class="badge badge-proposed" title="${escapeHtml(cap.proposed)}">Proposed</span>` : '';
 
     const tr = document.createElement('tr');
     if (rowClass) tr.classList.add(rowClass);
+    if (cap.proposed) tr.classList.add('row-proposed');
     tr.innerHTML = `
-      <td><span class="cap-title">${escapeHtml(cap.title)}</span><div class="cap-id"><code>${escapeHtml(cap.id)}</code></div>${noteHtml}</td>
+      <td><span class="cap-title">${escapeHtml(cap.title)}</span>${proposedHtml}<div class="cap-id"><code>${escapeHtml(cap.id)}</code></div>${noteHtml}</td>
       <td>${valueDisplay}</td>
       <td>${rawKeyDisplay}</td>
       <td>${rawValueDisplay}</td>
@@ -172,12 +174,14 @@ function renderFlowsTable() {
     if (flow.args) extras.push(`<div class="note"><strong>Arguments:</strong> ${escapeHtml(flow.args)}</div>`);
     if (flow.tokens) extras.push(`<div class="note"><strong>Tokens:</strong> ${escapeHtml(flow.tokens)}</div>`);
     const deprecated = flow.deprecated ? ' <span class="badge badge-deprecated">Deprecated</span>' : '';
+    const proposed = flow.proposed ? ` <span class="badge badge-proposed" title="${escapeHtml(flow.proposed)}">Proposed</span>` : '';
 
     const tr = document.createElement('tr');
     if (flow.deprecated) tr.classList.add('row-deprecated');
+    if (flow.proposed) tr.classList.add('row-proposed');
     tr.innerHTML = `
       <td>${escapeHtml(flow.title)}</td>
-      <td><span class="badge badge-${flow.type.toLowerCase()}">${escapeHtml(flow.type)}</span>${deprecated}</td>
+      <td><span class="badge badge-${flow.type.toLowerCase()}">${escapeHtml(flow.type)}</span>${deprecated}${proposed}</td>
       <td><code>${escapeHtml(flow.id)}</code></td>
       <td>${escapeHtml(flow.description)}${extras.join('')}</td>
     `;

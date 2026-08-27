@@ -70,7 +70,7 @@
       <!-- Capabilities Table -->
       <div class="card">
         <h2>Capabilities</h2>
-        <p class="table-description">Vehicle data points mapped to Homey capabilities. Each row shows the capability, the value as the Homey app derives it, and the raw attribute(s) it is read from. Where the Homey app falls back through several attributes, the one actually used is shown. Lock, door, window and sunroof state only travel over the Homey app's WebSocket push connection and never appear in the REST data this tool reads, so those rows are greyed out.</p>
+        <p class="table-description">Vehicle data points mapped to Homey capabilities. Each row shows the capability, the value as the Homey app derives it, and the raw attribute(s) it is read from. Where the Homey app falls back through several attributes, the one actually used is shown. Lock, door, window and sunroof state only travel over the Homey app's WebSocket push connection and never appear in the REST data this tool reads, so those rows are greyed out. Rows marked <span class="badge badge-proposed">Proposed</span> are capabilities requested on GitHub that the Homey app does not have yet; they show whether your car reports the attribute the capability would read (see <code>todo.md</code>).</p>
         <div class="table-wrapper">
           <table id="capabilities-table">
             <thead>
@@ -107,7 +107,7 @@
       <!-- Logic Flows Table -->
       <div class="card">
         <h2>Logic Flows</h2>
-        <p class="table-description">Homey flow cards provided by the app. Actions send commands to the car, conditions check the current capability values, and triggers fire when the vehicle state changes. Arguments and tokens are listed where a card has them; deprecated cards still exist for old flows but no longer work.</p>
+        <p class="table-description">Homey flow cards provided by the app. Actions send commands to the car, conditions check the current capability values, and triggers fire when the vehicle state changes. Arguments and tokens are listed where a card has them; deprecated cards still exist for old flows but no longer work, and cards marked <span class="badge badge-proposed">Proposed</span> are requested but not in the app yet.</p>
         <div class="table-wrapper">
           <table id="flows-table">
             <thead>

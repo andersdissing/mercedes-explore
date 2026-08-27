@@ -13,6 +13,7 @@ https://stmercedesexplore01.z6.web.core.windows.net/
 - Display data in two tables:
   - **Capabilities** - vehicle data points mapped to Homey capabilities (values, raw keys, transforms, fallback attributes). Lock, door, window and sunroof state only travel over the Homey app's WebSocket push connection and are marked as such - the REST endpoint this tool reads never carries them
   - **Logic Flows** - Homey flow cards (actions, conditions, triggers) with their arguments, tokens and deprecation status
+  - Rows marked **Proposed** (currently the charge flap, [issue #55](https://github.com/andersdissing/Mercedes-Benz-homey-app/issues/55)) are requested capabilities and flow cards the Homey app does not have yet, so owners can check whether their car reports the attribute. What the Homey app needs to implement for them is tracked in [todo.md](todo.md)
 - Copy capabilities table or raw key/value data to clipboard
 - Refresh data without re-logging in
 - Progress log showing each step of the login and data fetch process

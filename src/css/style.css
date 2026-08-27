@@ -324,6 +324,17 @@ footer {
   opacity: 0.6;
 }
 
+/* Proposed capabilities / flow cards: requested in a GitHub issue, not in the Homey app yet */
+.badge-proposed {
+  background: #ede7f6;
+  color: #4527a0;
+  margin-left: 0.3rem;
+}
+
+.row-proposed td {
+  background: #faf8fd;
+}
+
 /* Capability ID and explanatory notes under a capability title */
 .cap-id {
   margin-top: 0.15rem;
