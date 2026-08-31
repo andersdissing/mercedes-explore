@@ -83,13 +83,71 @@ class MercedesAPI {
    */
   async getVehicleCapabilities(vin) {
     progressLog(`Fetching capabilities for ${vin}...`);
-    const headers = await this._getHeaders();
-    const url = `${this.endpoints.rest}/v1/vehicle/${vin}/capabilities`;
+    return await this._getJson(`${this.endpoints.rest}/v1/vehicle/${vin}/capabilities`, 'capabilities');
+  }
 
+  /**
+   * Get the commands the vehicle accepts
+   */
+  async getVehicleCommandCapabilities(vin) {
+    progressLog(`Fetching command capabilities for ${vin}...`);
+    return await this._getJson(`${this.endpoints.rest}/v1/vehicle/${vin}/capabilities/commands`, 'command capabilities');
+  }
+
+  /**
+   * Merged feature map (featureName -> isAvailable) from /capabilities and
+   * /capabilities/commands - the map the Homey app's powertrain logic reads
+   * (`api.getVehicleFeatures()` in the Homey app).
+   *
+   * Both endpoints are best-effort: they answer 401 for some cars, and the
+   * Homey app carries on with whatever it got. The reason each one failed is
+   * returned alongside, because "no features at all" is exactly the case the
+   * powertrain panel has to explain rather than silently call unknown.
+   *
+   * @returns {Promise<{features: Object, errors: string[]}>}
+   */
+  async getVehicleFeatures(vin) {
+    const features = {};
+    const errors = [];
+
+    try {
+      const capabilities = await this.getVehicleCapabilities(vin);
+      if (capabilities && capabilities.features) {
+        Object.assign(features, capabilities.features);
+      }
+    } catch (error) {
+      errors.push(error.message);
+      progressLog(`Vehicle capabilities not available: ${error.message}`);
+    }
+
+    try {
+      const commandCapabilities = await this.getVehicleCommandCapabilities(vin);
+      if (commandCapabilities && Array.isArray(commandCapabilities.commands)) {
+        for (const command of commandCapabilities.commands) {
+          features[command.commandName] = Boolean(command.isAvailable);
+
+          // CHARGE_PROGRAM_CONFIGURE is only useful to the Homey app if it
+          // exposes a MAX_SOC parameter
+          if (command.commandName === 'CHARGE_PROGRAM_CONFIGURE') {
+            const parameters = command.parameters || [];
+            features.CHARGE_PROGRAM_CONFIGURE = parameters.some(p => p.parameterName === 'MAX_SOC');
+          }
+        }
+      }
+    } catch (error) {
+      errors.push(error.message);
+      progressLog(`Vehicle command capabilities not available: ${error.message}`);
+    }
+
+    return { features, errors };
+  }
+
+  async _getJson(url, what) {
+    const headers = await this._getHeaders();
     const response = await proxyFetch(url, { method: 'GET', headers });
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch capabilities: ${response.status}`);
+      throw new Error(`Failed to fetch ${what}: ${response.status}`);
     }
 
     return await response.json();

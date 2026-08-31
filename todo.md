@@ -98,3 +98,57 @@ Mirror the existing door / connector patterns — file:line references are for v
 - 2026-08-02 — raw data (closed + open state) requested from the reporter; not received yet
 - 2026-08-26 — Anders: cannot read a charge flap status from his own car
 - 2026-08-27 — Explorer shows a *Proposed* **Charge Flap** row and the four flow cards so owners can report whether their car sends `chargeFlapDCStatus` / `chargeFlapACStatus`
+
+---
+
+## 2. Powertrain assessment — [issue #79](https://github.com/andersdissing/Mercedes-Benz-homey-app/issues/79)
+
+**Report:** a GLC 220d — a diesel — shows a battery at 0% and Homey raises low-battery
+alerts for it. Every car was paired with `measure_battery` and the driver declared
+`energy.batteries`, so a diesel was a battery device by construction.
+
+The fix is [PR #80](https://github.com/andersdissing/Mercedes-Benz-homey-app/pull/80) (app v1.1.50,
+**draft, not verified on a real car**): `lib/powertrain.js` classifies the car from what Mercedes
+says it can be *commanded* to do — `/v1/vehicle/{vin}/capabilities` and `.../capabilities/commands`,
+merged by `api.getVehicleFeatures()` — and the device adds or removes the electric capabilities to
+match. Charge/ZEV commands mean electric, auxheat/engine start mean combustion, both mean a plug-in
+hybrid (electric), nothing recognised means `unknown`, which keeps every capability but is not
+declared battery-powered.
+
+### What the Explorer shows
+
+`src/js/powertrain.js` is a port of that classification, run against the same two endpoints, and the
+**Powertrain** panel shows the verdict an owner's car produces plus the commands that produced it.
+That is the value to ask a reporter for when a car is classified wrongly — it says whether the car's
+command vocabulary is one the markers miss, or whether the endpoints answered at all.
+
+**Unknowns — resolve before/while implementing**
+
+- [ ] **Do both endpoints answer for a normal account?** PR #80 assumes either can 401; that has not
+      been seen on a real car yet. A `Failed to fetch capabilities: 401` line in the panel is the
+      evidence, and the `unknown` verdict it produces is the one that leaves a diesel alone but also
+      leaves it with the electric capabilities.
+- [ ] **Does the diesel in #79 classify as `ice`?** It should list `AUXHEAT_*` / `ENGINE_*` and no
+      charge command. Ask the reporter for an Explorer screenshot of the panel.
+- [ ] **Marker coverage.** `CHARGE`, `CHARGING`, `ZEV`, `MAX_SOC`, `HV_BATTERY` vs. `AUXHEAT`,
+      `AUX_HEAT`, `ENGINE_START`, `ENGINE_STOP`, `TANK`, `FUEL`. A car that offers only commands
+      outside both lists lands on `unknown`; collect those command names from Explorer reports and
+      widen the lists in the Homey app (and here) rather than guessing.
+
+### Implementation checklist
+
+- [ ] **Homey app**: merge PR #80 after verifying on a real car — a diesel loses `measure_battery`
+      and raises no alert, a BEV keeps its capabilities, and the **Powertrain** setting overrides
+      detection in both directions.
+- [ ] **Close the loop in this Explorer** — drop the *Proposed* badge on the Powertrain panel
+      (`powertrain-proposed` in `src/index.html`, `POWERTRAIN_ISSUE` in `src/js/powertrain.js`), bump
+      `HOMEY_APP_VERSION`, keep `EV_MARKERS` / `ICE_MARKERS` / `EV_CAPABILITIES` in step with
+      `lib/powertrain.js`, and delete this section.
+
+### Timeline
+
+- issue #79 opened by the owner of a GLC 220d: petrol/diesel car showing a low battery
+- 2026-08-31 — PR #80 opened (draft): `lib/powertrain.js`, powertrain setting, capabilities added
+  and removed per verdict
+- 2026-08-31 — Explorer shows a *Proposed* **Powertrain** panel running the same classification, so
+  owners can report the verdict and the commands behind it

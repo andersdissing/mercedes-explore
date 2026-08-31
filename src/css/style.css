@@ -368,3 +368,36 @@ footer {
   color: #888;
   margin-top: 0.25rem;
 }
+
+/* Powertrain verdict: what the Homey app's own logic makes of this car */
+.powertrain-verdict {
+  font-size: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.badge-powertrain {
+  font-size: 0.95rem;
+  padding: 0.25rem 0.7rem;
+  margin-left: 0.2rem;
+  background: #eceff1;
+  color: #37474f;
+}
+
+.badge-powertrain-ev {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.badge-powertrain-ice {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.badge-powertrain-unknown {
+  background: #eceff1;
+  color: #37474f;
+}
+
+#powertrain-evidence .note {
+  margin-top: 0.5rem;
+}

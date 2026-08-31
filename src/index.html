@@ -67,6 +67,22 @@
         <button id="refresh-btn" class="btn btn-secondary">Refresh</button>
       </div>
 
+      <!-- Powertrain -->
+      <div class="card" id="powertrain-card">
+        <h2>Powertrain <span id="powertrain-proposed" class="badge badge-proposed">Proposed</span></h2>
+        <p class="powertrain-verdict">
+          The Homey app assesses your car as <span id="powertrain-label" class="badge badge-powertrain">Unknown</span>
+        </p>
+        <p class="table-description">This is not a value your car reports - Mercedes sends no powertrain field at all, and an
+          absent battery reading proves nothing. It is the verdict the Homey app's own logic reaches, from what Mercedes says
+          your car <em>can be commanded to do</em>: charging commands mean electric, engine start and auxiliary heating mean
+          petrol or diesel, both mean a plug-in hybrid, which counts as electric. This tool runs that same logic on the same
+          two endpoints, so the value above is what the Homey app decides for your car. If it is wrong, the app's
+          <strong>Powertrain</strong> device setting overrides it.</p>
+        <p class="table-description" id="powertrain-meaning"></p>
+        <div id="powertrain-evidence"></div>
+      </div>
+
       <!-- Capabilities Table -->
       <div class="card">
         <h2>Capabilities</h2>
@@ -136,6 +152,7 @@
   <!-- Scripts (order matters: config first, then data, then utilities, then app.js last) -->
   <script src="js/config.js"></script>
   <script src="js/data.js"></script>
+  <script src="js/powertrain.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/api.js"></script>
   <script src="js/proto.js"></script>

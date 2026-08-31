@@ -163,6 +163,11 @@ async function loadVehicleData(vin) {
     dataSection.classList.remove('hidden');
     progressLog('Data loaded successfully');
 
+    // The powertrain verdict comes from two further endpoints, and neither
+    // they nor the panel may cost the tables: assessed once the data section
+    // is already up, and unable to fail the load around it.
+    await loadPowertrain(vin);
+
   } catch (error) {
     progressLog(`Failed to load vehicle data: ${error.message}`);
   } finally {
@@ -171,10 +176,42 @@ async function loadVehicleData(vin) {
 }
 
 /**
+ * Assess the powertrain the way the Homey app does, and show the verdict
+ */
+async function loadPowertrain(vin) {
+  const card = document.getElementById('powertrain-card');
+
+  // js/powertrain.js is not there: an index.html cached from before the panel
+  // existed still loads this app.js, and asking it for a verdict would
+  // otherwise throw where the caller reads as "failed to load vehicle data".
+  if (typeof assessPowertrain !== 'function') {
+    if (card) card.classList.add('hidden');
+    progressLog('Powertrain not assessed: js/powertrain.js did not load - reload the page (Ctrl+F5)');
+    return;
+  }
+
+  try {
+    progressLog('Assessing powertrain from vehicle capabilities...');
+    const { features, errors } = await api.getVehicleFeatures(vin);
+    const assessment = assessPowertrain(features);
+    renderPowertrain(assessment, errors);
+    progressLog(`Powertrain assessed as: ${POWERTRAIN_LABELS[assessment.powertrain]}`);
+  } catch (error) {
+    // The tables are already on screen and stay there; only the verdict is lost.
+    if (card) card.classList.add('hidden');
+    progressLog(`Powertrain not assessed: ${error.message}`);
+  }
+}
+
+/**
  * Initialize the app
  */
 document.addEventListener('DOMContentLoaded', () => {
-  progressLog('Mercedes-Benz Data Explorer ready');
+  // The build the browser actually has. A page holding an older js/app.js than
+  // the one just deployed looks exactly like a deploy that did not happen, and
+  // this line is what tells the two apart without opening devtools.
+  const build = (typeof PROXY_CONFIG !== 'undefined' && PROXY_CONFIG.build) || 'unknown';
+  progressLog(`Mercedes-Benz Data Explorer ready (build ${build})`);
   const versionEl = document.getElementById('homey-app-version');
   if (versionEl) versionEl.textContent = 'v' + HOMEY_APP_VERSION;
 
