@@ -36,3 +36,5 @@ Hosted on Azure: Storage Account (static site) + Function App (Consumption plan,
 ```
 
 The deploy script handles everything: resource provisioning (Bicep), function deployment, static file upload.
+
+The same script also runs from GitHub: the **Deploy to Azure** workflow (Actions tab, manual trigger) deploys whichever branch it is dispatched from. It needs a one-time `AZURE_CREDENTIALS` repository secret; the setup command is in [.github/workflows/deploy.yml](.github/workflows/deploy.yml).
