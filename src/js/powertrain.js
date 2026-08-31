@@ -58,8 +58,8 @@ const POWERTRAIN_LABELS = {
 // What the verdict means for the device in Homey, per state.
 const POWERTRAIN_CONSEQUENCES = {
   [POWERTRAIN_EV]: 'Your car offers at least one charging command, so the Homey app treats it as '
-    + 'battery-powered: it keeps the battery, range and charging capabilities, and Homey's '
-    + 'own low-battery alert applies to it.',
+    + 'battery-powered: it keeps the battery, range and charging capabilities, and the low-battery '
+    + 'alert in Homey applies to it.',
   [POWERTRAIN_ICE]: 'Your car offers engine and auxiliary-heating commands but no charging command, '
     + 'so the Homey app removes the battery, range and charging capabilities and never reports it '
     + 'as battery-powered - this is what stops a diesel from sitting at 0% and raising a '

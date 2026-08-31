@@ -159,14 +159,14 @@ async function loadVehicleData(vin) {
     renderUnmappedTable(vehicleData);
     renderFlowsTable();
 
-    // The powertrain verdict comes from separate endpoints, and both are
-    // allowed to fail: a car whose capabilities cannot be read is 'unknown',
-    // which is a real answer, not an error worth losing the tables over.
-    await loadPowertrain(vin);
-
     // Show data section
     dataSection.classList.remove('hidden');
     progressLog('Data loaded successfully');
+
+    // The powertrain verdict comes from two further endpoints, and neither
+    // they nor the panel may cost the tables: assessed once the data section
+    // is already up, and unable to fail the load around it.
+    await loadPowertrain(vin);
 
   } catch (error) {
     progressLog(`Failed to load vehicle data: ${error.message}`);
@@ -179,11 +179,28 @@ async function loadVehicleData(vin) {
  * Assess the powertrain the way the Homey app does, and show the verdict
  */
 async function loadPowertrain(vin) {
-  progressLog('Assessing powertrain from vehicle capabilities...');
-  const { features, errors } = await api.getVehicleFeatures(vin);
-  const assessment = assessPowertrain(features);
-  renderPowertrain(assessment, errors);
-  progressLog(`Powertrain assessed as: ${POWERTRAIN_LABELS[assessment.powertrain]}`);
+  const card = document.getElementById('powertrain-card');
+
+  // js/powertrain.js is not there: an index.html cached from before the panel
+  // existed still loads this app.js, and asking it for a verdict would
+  // otherwise throw where the caller reads as "failed to load vehicle data".
+  if (typeof assessPowertrain !== 'function') {
+    if (card) card.classList.add('hidden');
+    progressLog('Powertrain not assessed: js/powertrain.js did not load - reload the page (Ctrl+F5)');
+    return;
+  }
+
+  try {
+    progressLog('Assessing powertrain from vehicle capabilities...');
+    const { features, errors } = await api.getVehicleFeatures(vin);
+    const assessment = assessPowertrain(features);
+    renderPowertrain(assessment, errors);
+    progressLog(`Powertrain assessed as: ${POWERTRAIN_LABELS[assessment.powertrain]}`);
+  } catch (error) {
+    // The tables are already on screen and stay there; only the verdict is lost.
+    if (card) card.classList.add('hidden');
+    progressLog(`Powertrain not assessed: ${error.message}`);
+  }
 }
 
 /**
