@@ -207,7 +207,11 @@ async function loadPowertrain(vin) {
  * Initialize the app
  */
 document.addEventListener('DOMContentLoaded', () => {
-  progressLog('Mercedes-Benz Data Explorer ready');
+  // The build the browser actually has. A page holding an older js/app.js than
+  // the one just deployed looks exactly like a deploy that did not happen, and
+  // this line is what tells the two apart without opening devtools.
+  const build = (typeof PROXY_CONFIG !== 'undefined' && PROXY_CONFIG.build) || 'unknown';
+  progressLog(`Mercedes-Benz Data Explorer ready (build ${build})`);
   const versionEl = document.getElementById('homey-app-version');
   if (versionEl) versionEl.textContent = 'v' + HOMEY_APP_VERSION;
 
