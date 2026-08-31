@@ -1,0 +1,79 @@
+# Deploys the whole solution to Azure by running deploy/deploy.ps1 - the same
+# script a local deploy uses, so there is exactly one deployment path. The
+# script is idempotent: resource group, Bicep template, function zip deploy and
+# static upload all re-apply cleanly over an existing environment.
+#
+# Manual trigger only for now. Run it from the Actions tab; the inputs default
+# to the live environment's names, and the run deploys whatever branch you
+# dispatch it from.
+#
+# One-time setup - the runner logs in with a service principal stored in the
+# AZURE_CREDENTIALS repository secret:
+#
+#   az ad sp create-for-rbac --name "gh-mercedes-explore" --role Contributor \
+#     --scopes /subscriptions/<subscription-id>/resourceGroups/rg-mercedes-explore \
+#     --json-auth
+#
+# Paste the JSON output into a repository secret named AZURE_CREDENTIALS
+# (Settings -> Secrets and variables -> Actions, or
+# `gh secret set AZURE_CREDENTIALS < creds.json`). Scoping the principal to the
+# resource group is enough because the group already exists; a principal that
+# must also create it needs subscription scope.
+
+name: Deploy to Azure
+
+on:
+  workflow_dispatch:
+    inputs:
+      resource_group:
+        description: Azure resource group
+        required: true
+        default: rg-mercedes-explore
+      storage_account:
+        description: Storage account (static website)
+        required: true
+        default: stmercedesexplore01
+      function_app:
+        description: Function app (CORS proxy)
+        required: true
+        default: func-mercedes-explore
+      location:
+        description: Azure region
+        required: true
+        default: westeurope
+
+# Two deploys interleaving would race on the same storage account and function
+# app; queue them instead.
+concurrency:
+  group: deploy-azure
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    # deploy.ps1 assumes Windows: $env:TEMP for its staging directories and
+    # Windows-style quoting on one az call. The runner already has az, bicep,
+    # node and pwsh, so the script's own installers never run.
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # The script's own login check (az account show + az group list) passes
+      # against the session azure/login created, so it never tries to open a
+      # browser.
+      - name: Run deploy script
+        shell: pwsh
+        run: >-
+          ./deploy/deploy.ps1
+          -ResourceGroupName "${{ inputs.resource_group }}"
+          -StorageAccountName "${{ inputs.storage_account }}"
+          -FunctionAppName "${{ inputs.function_app }}"
+          -Location "${{ inputs.location }}"
