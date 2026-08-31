@@ -159,6 +159,11 @@ async function loadVehicleData(vin) {
     renderUnmappedTable(vehicleData);
     renderFlowsTable();
 
+    // The powertrain verdict comes from separate endpoints, and both are
+    // allowed to fail: a car whose capabilities cannot be read is 'unknown',
+    // which is a real answer, not an error worth losing the tables over.
+    await loadPowertrain(vin);
+
     // Show data section
     dataSection.classList.remove('hidden');
     progressLog('Data loaded successfully');
@@ -168,6 +173,17 @@ async function loadVehicleData(vin) {
   } finally {
     loading.classList.add('hidden');
   }
+}
+
+/**
+ * Assess the powertrain the way the Homey app does, and show the verdict
+ */
+async function loadPowertrain(vin) {
+  progressLog('Assessing powertrain from vehicle capabilities...');
+  const { features, errors } = await api.getVehicleFeatures(vin);
+  const assessment = assessPowertrain(features);
+  renderPowertrain(assessment, errors);
+  progressLog(`Powertrain assessed as: ${POWERTRAIN_LABELS[assessment.powertrain]}`);
 }
 
 /**
