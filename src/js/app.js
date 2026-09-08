@@ -230,6 +230,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('vehicle-select').addEventListener('change', handleVehicleSelect);
 
   // Copy buttons
+  document.getElementById('copy-everything-btn').addEventListener('click', copyEverythingToClipboard);
   document.getElementById('copy-btn').addEventListener('click', copyTableToClipboard);
   document.getElementById('copy-raw-btn').addEventListener('click', copyRawDataToClipboard);
   document.getElementById('copy-raw-api-btn').addEventListener('click', copyRawApiToClipboard);

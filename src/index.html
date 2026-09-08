@@ -61,11 +61,13 @@
     <section id="data-section" class="hidden">
       <!-- Export Buttons -->
       <div class="export-bar">
+        <button id="copy-everything-btn" class="btn btn-primary" title="Everything below in one paste: tables, raw attributes, the powertrain assessment and the progress log. Your VIN is replaced with VIN-REDACTED.">Copy Everything (for a bug report)</button>
         <button id="copy-btn" class="btn btn-secondary">Copy Table</button>
         <button id="copy-raw-btn" class="btn btn-secondary">Copy Raw Data</button>
         <button id="copy-raw-api-btn" class="btn btn-secondary">Copy All Raw Attributes</button>
         <button id="refresh-btn" class="btn btn-secondary">Refresh</button>
       </div>
+      <p class="export-hint">Reporting something on GitHub? Press <strong>Copy Everything</strong> - one paste with all of it. Note it includes your car's position; remove the <code>positionLat</code> / <code>positionLong</code> lines if you would rather not share it.</p>
 
       <!-- Powertrain -->
       <div class="card" id="powertrain-card">

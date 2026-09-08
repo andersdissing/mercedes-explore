@@ -401,3 +401,10 @@ footer {
 #powertrain-evidence .note {
   margin-top: 0.5rem;
 }
+
+/* The one-button report path: reporters press this, not one of the four */
+.export-hint {
+  color: #666;
+  font-size: 0.85rem;
+  margin: -0.5rem 0 1.25rem;
+}

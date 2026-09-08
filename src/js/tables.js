@@ -193,6 +193,11 @@ function renderFlowsTable() {
  * Copy capabilities table to clipboard as TSV (tab-separated values)
  */
 async function copyTableToClipboard() {
+  await copyToClipboard(capabilitiesTableText(), 'copy-btn', 'Table copied to clipboard');
+}
+
+/** The capabilities table as TSV - pastes into Excel/Sheets as a table */
+function capabilitiesTableText() {
   let output = 'Capability Name\tCapability ID\tHomey Value\tRaw Data Key\tRaw Value\n';
 
   const capRows = document.querySelectorAll('#capabilities-table tbody tr');
@@ -209,7 +214,59 @@ async function copyTableToClipboard() {
     }
   }
 
-  await copyToClipboard(output, 'copy-btn', 'Table copied to clipboard');
+  return output;
+}
+
+/**
+ * One paste with everything a maintainer needs, because the alternative is
+ * telling a reporter which of four buttons to press and finding out a round
+ * trip later that they pressed a different one.
+ *
+ * The VIN is masked: this goes into public GitHub issues, and nothing in it
+ * needs the VIN to be read.
+ */
+async function copyEverythingToClipboard() {
+  const build = (typeof PROXY_CONFIG !== 'undefined' && PROXY_CONFIG.build) || 'unknown';
+
+  const sections = [
+    `# Mercedes-Benz Data Explorer report (build ${build}, VIN removed)`,
+    '',
+    '=== Capabilities ===',
+    capabilitiesTableText(),
+    '=== Unmapped raw attributes ===',
+    tableText('#unmapped-table'),
+    '=== All raw attributes ===',
+    rawAttributesText(),
+    powertrainExport().replace(/^\n/, ''),
+    '=== Progress log ===',
+    progressLogText()
+  ];
+
+  const vin = /\b[A-HJ-NPR-Z0-9]{17}\b/g;
+  await copyToClipboard(sections.join('\n').replace(vin, 'VIN-REDACTED'),
+    'copy-everything-btn', 'Everything copied to clipboard');
+}
+
+/** Any rendered table as tab-separated rows, headers included */
+function tableText(selector) {
+  const rows = document.querySelectorAll(`${selector} thead tr, ${selector} tbody tr`);
+  return Array.from(rows)
+    .map(row => Array.from(row.querySelectorAll('th, td')).map(c => c.textContent.trim().replace(/\s+/g, ' ')).join('\t'))
+    .join('\n') + '\n';
+}
+
+/** Every attribute the API returned for this vehicle */
+function rawAttributesText() {
+  return Object.keys(currentVehicleData).sort()
+    .map(key => `${key} = ${formatRaw(currentVehicleData[key])}`)
+    .join('\n') + '\n';
+}
+
+/** The progress log as shown, one entry per line */
+function progressLogText() {
+  const log = document.getElementById('progress-log');
+  if (!log) return '(no log)\n';
+  return Array.from(log.querySelectorAll('.log-entry')).map(e => e.textContent).join('\n') + '\n';
 }
 
 /**
