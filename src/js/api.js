@@ -104,15 +104,25 @@ class MercedesAPI {
    * returned alongside, because "no features at all" is exactly the case the
    * powertrain panel has to explain rather than silently call unknown.
    *
-   * @returns {Promise<{features: Object, errors: string[]}>}
+   * Both endpoints' answers are returned as they arrived, next to the merged
+   * map built from them. The merge is lossy in the one place that decides a
+   * verdict - `isAvailable` is overwritten for CHARGE_PROGRAM_CONFIGURE below -
+   * so a wrong verdict cannot be explained from the merged map alone, and the
+   * export an owner sends is the only look anyone gets at their car.
+   *
+   * @returns {Promise<{features: Object, errors: string[],
+   *   capabilityFeatures: Object|null, commands: Array|null}>}
    */
   async getVehicleFeatures(vin) {
     const features = {};
     const errors = [];
+    let capabilityFeatures = null;
+    let commands = null;
 
     try {
       const capabilities = await this.getVehicleCapabilities(vin);
       if (capabilities && capabilities.features) {
+        capabilityFeatures = capabilities.features;
         Object.assign(features, capabilities.features);
       }
     } catch (error) {
@@ -123,6 +133,12 @@ class MercedesAPI {
     try {
       const commandCapabilities = await this.getVehicleCommandCapabilities(vin);
       if (commandCapabilities && Array.isArray(commandCapabilities.commands)) {
+        commands = commandCapabilities.commands.map(command => ({
+          commandName: command.commandName,
+          isAvailable: Boolean(command.isAvailable),
+          parameters: (command.parameters || []).map(p => p.parameterName).filter(Boolean)
+        }));
+
         for (const command of commandCapabilities.commands) {
           features[command.commandName] = Boolean(command.isAvailable);
 
@@ -139,7 +155,7 @@ class MercedesAPI {
       progressLog(`Vehicle command capabilities not available: ${error.message}`);
     }
 
-    return { features, errors };
+    return { features, errors, capabilityFeatures, commands };
   }
 
   async _getJson(url, what) {

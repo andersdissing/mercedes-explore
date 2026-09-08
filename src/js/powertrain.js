@@ -1,21 +1,33 @@
 /**
- * Powertrain assessment - a port of the Homey app's `lib/powertrain.js`
- * (Mercedes-Benz-homey-app PR #80, for issue #79).
+ * Powertrain assessment.
  *
- * The car never says whether it is electric or combustion: the vehicle
- * attributes carry no powertrain field, and a missing `soc` proves nothing
- * because the parser drops nil attributes. What decides it is what Mercedes
- * says the car *can be told to do* - `/v1/vehicle/{vin}/capabilities` and
- * `.../capabilities/commands`. Charge and ZEV commands mean electric, auxheat
- * and engine start mean combustion, both mean a plug-in hybrid, which resolves
- * to electric because keeping every capability is the right answer for one.
+ * Started as a port of the Homey app's `lib/powertrain.js` (PR #80, for issue
+ * #79) and no longer is one: a reporting owner's diesel came back electric
+ * here, and the export said why. Two things the command-only rule got wrong,
+ * both visible in that one car:
  *
- * This file runs the same classification here so an owner can see the verdict
- * their car produces - the value behind a diesel showing a battery at 0% - and
- * which of their car's commands produced it, without reading a Homey log.
+ * 1. ZEV commands are not electric evidence. Mercedes offers
+ *    ZEV_PRECONDITIONING_START / _STOP / ZEV_PRECONDITION_CONFIGURE / _SEATS on
+ *    combustion cars as remote pre-entry climate - that diesel offers all four,
+ *    with `precondNow` and `remoteSettingTemperature` true - so "ZEV" is a
+ *    marker of a heater, not of a battery. It is gone from the markers.
+ * 2. Commands alone cannot classify every car. On that same diesel every
+ *    combustion marker is false too: no auxheat, no remote engine start. With
+ *    ZEV dropped it would land on `unknown` - quiet, but still not right.
  *
- * Keep in step with `lib/powertrain.js` in the Homey app: the markers and the
- * EV capability list below are copied from it verbatim.
+ * What does decide it is the reading the car sent. `rangeliquid`,
+ * `tanklevelpercent` and `tankLevelAdBlue` are values only a car with a fuel
+ * tank has; `soc` and `rangeelectric` only a car with a high-voltage battery.
+ * The app's premise - that the readings cannot decide this - holds only for
+ * *absence*: the parser drops nil attributes, so a missing `soc` says nothing.
+ * Presence is proof, and proof beats a guess off a command catalogue.
+ *
+ * So: readings first, commands second, `unknown` when neither says anything.
+ *
+ * The Homey app does not do this yet - it ships the command-only rule - so
+ * `assessPowertrain()` also reports what that rule would have said, and the
+ * panel shows both whenever they disagree. Issue #79 is where that gets fixed
+ * in the app; `todo.md` carries what this tool learned for it.
  */
 
 const POWERTRAIN_EV = 'ev';
@@ -42,8 +54,48 @@ const EV_CAPABILITIES = [
 // map by SCREAMING_SNAKE command names (CHARGE_PROGRAM_CONFIGURE), while
 // /capabilities returns a camelCase feature dict. Both are normalised to the
 // same shape before matching.
-const EV_MARKERS = ['CHARGE', 'CHARGING', 'ZEV', 'MAX_SOC', 'HV_BATTERY'];
+//
+// No ZEV here (see the file comment). HVBATTERY is spelled without the
+// underscore Mercedes does not send: the commands arrive as
+// HVBATTERY_START_CONDITIONING, which `HV_BATTERY` never matched.
+const EV_MARKERS = ['CHARGE', 'CHARGING', 'MAX_SOC', 'HV_BATTERY', 'HVBATTERY'];
 const ICE_MARKERS = ['AUXHEAT', 'AUX_HEAT', 'ENGINE_START', 'ENGINE_STOP', 'TANK', 'FUEL'];
+
+// What the Homey app's own rule uses today, kept only to show an owner where
+// this tool and their Homey device disagree - and why - until #79 lands.
+const APP_EV_MARKERS = ['CHARGE', 'CHARGING', 'ZEV', 'MAX_SOC', 'HV_BATTERY'];
+
+// Attributes only one kind of car can send. Presence proves; absence proves
+// nothing, because the parser drops attributes the car sent as nil and a car
+// that has not woken since pairing sends almost none of them.
+const EV_ATTRIBUTES = [
+  'soc',
+  'rangeelectric',
+  'chargingactive',
+  'chargingstatus',
+  'chargingpower',
+  'endofchargetime',
+  'maxSoc',
+  'selectedChargeProgram',
+  'chargeCouplerACStatus',
+  'chargeCouplerDCStatus',
+  'chargeFlapACStatus',
+  'chargeFlapDCStatus',
+  'temperaturehvbattery',
+  'hvbatterytemperature'
+];
+
+// A fuel tank, AdBlue for diesel SCR, and engine oil. A battery-electric car
+// has none of them; a plug-in hybrid has both these and the electric ones,
+// which is why the electric side is checked first.
+const ICE_ATTRIBUTES = [
+  'tanklevelpercent',
+  'rangeliquid',
+  'tankLevelAdBlue',
+  'gastanklevelpercent',
+  'rangegas',
+  'oilLevel'
+];
 
 // Detection is not in the Homey app yet - it is proposed in issue #79 / PR #80.
 const POWERTRAIN_ISSUE = 'Detection proposed in GitHub issue #79 / pull request #80 - not in Homey app v'
@@ -57,17 +109,16 @@ const POWERTRAIN_LABELS = {
 
 // What the verdict means for the device in Homey, per state.
 const POWERTRAIN_CONSEQUENCES = {
-  [POWERTRAIN_EV]: 'Your car offers at least one charging command, so the Homey app treats it as '
-    + 'battery-powered: it keeps the battery, range and charging capabilities, and the low-battery '
-    + 'alert in Homey applies to it.',
-  [POWERTRAIN_ICE]: 'Your car offers engine and auxiliary-heating commands but no charging command, '
-    + 'so the Homey app removes the battery, range and charging capabilities and never reports it '
-    + 'as battery-powered - this is what stops a diesel from sitting at 0% and raising a '
-    + 'low-battery alert.',
-  [POWERTRAIN_UNKNOWN]: 'Mercedes did not tell this tool what your car can be commanded to do - both '
-    + 'capability endpoints are refused for some cars. The Homey app then leaves every capability '
-    + 'in place, because removing one would destroy its history and break any flow using it, but it '
-    + 'still does not declare the car battery-powered, so no low-battery alert is raised.'
+  [POWERTRAIN_EV]: 'A car assessed electric keeps the battery, range and charging capabilities, is '
+    + 'declared battery-powered, and the low-battery alert in Homey applies to it.',
+  [POWERTRAIN_ICE]: 'A car assessed petrol or diesel has the battery, range and charging '
+    + 'capabilities removed and is never declared battery-powered - which is what stops a diesel '
+    + 'from sitting at 0% and raising a low-battery alert.',
+  [POWERTRAIN_UNKNOWN]: 'Nothing your car reported or accepts says either way: it has sent no fuel '
+    + 'or battery reading yet, and its command list carries neither charging nor engine commands - '
+    + 'or Mercedes refused both capability endpoints, which happens for some cars. Every capability '
+    + 'is then left in place, because removing one would destroy its history and break any flow '
+    + 'using it, but the car is not declared battery-powered, so no low-battery alert is raised.'
 };
 
 /**
@@ -85,17 +136,23 @@ function matchesPowertrainMarker(key, markers) {
 }
 
 /**
- * Classify a car from the merged feature map (featureName -> boolean).
- *
- * Same rule as the Homey app - any electric marker wins, even alongside
- * auxheat and engine start, because that combination is a plug-in hybrid -
- * but it also reports the feature names that decided it, which the Homey app
- * only writes to its log.
- *
- * @param {Object} features
- * @returns {{powertrain: string, evFeatures: string[], iceFeatures: string[], offered: string[]}}
+ * Which of `names` the car actually reported. Case-insensitive: Mercedes has
+ * sent both `precondActive` and `precondactive`, and 0 is a value like any
+ * other - `soc` of 0 is a real reading and must count as present.
  */
-function assessPowertrain(features) {
+function powertrainAttributesPresent(attributes, names) {
+  if (!attributes || typeof attributes !== 'object') return [];
+
+  const byLowerName = new Map();
+  for (const key of Object.keys(attributes)) byLowerName.set(key.toLowerCase(), key);
+
+  return names
+    .map(name => byLowerName.get(name.toLowerCase()))
+    .filter(key => key !== undefined && attributes[key] !== null && attributes[key] !== undefined);
+}
+
+/** Split a merged feature map into the markers each side matched */
+function powertrainMarkers(features, evMarkers) {
   const evFeatures = [];
   const iceFeatures = [];
   const offered = [];
@@ -108,20 +165,70 @@ function assessPowertrain(features) {
       offered.push(rawKey);
 
       const key = normalizePowertrainKey(rawKey);
-      if (matchesPowertrainMarker(key, EV_MARKERS)) evFeatures.push(rawKey);
+      if (matchesPowertrainMarker(key, evMarkers)) evFeatures.push(rawKey);
       else if (matchesPowertrainMarker(key, ICE_MARKERS)) iceFeatures.push(rawKey);
     }
   }
 
+  return { evFeatures: evFeatures.sort(), iceFeatures: iceFeatures.sort(), offered: offered.sort() };
+}
+
+/**
+ * Classify a car from what it reported and what Mercedes says it accepts.
+ *
+ * Readings decide when there are any: a car sending a fuel level has a tank, a
+ * car sending `soc` has a high-voltage battery, and a plug-in hybrid sends both
+ * - so the electric side is checked first, because keeping every capability is
+ * the right answer for one. Only a car that has reported nothing either way
+ * falls through to its command catalogue, and a car that says nothing there
+ * either stays `unknown` rather than being guessed at.
+ *
+ * @param {Object} features - merged map from api.getVehicleFeatures()
+ * @param {Object} [attributes] - the parsed vehicle attributes
+ * @returns {{powertrain: string, basis: string, evFeatures: string[],
+ *   iceFeatures: string[], evAttributes: string[], iceAttributes: string[],
+ *   offered: string[], appPowertrain: string, appEvFeatures: string[]}}
+ */
+function assessPowertrain(features, attributes) {
+  const { evFeatures, iceFeatures, offered } = powertrainMarkers(features, EV_MARKERS);
+  const evAttributes = powertrainAttributesPresent(attributes, EV_ATTRIBUTES);
+  const iceAttributes = powertrainAttributesPresent(attributes, ICE_ATTRIBUTES);
+
   let powertrain = POWERTRAIN_UNKNOWN;
-  if (evFeatures.length) powertrain = POWERTRAIN_EV;
-  else if (iceFeatures.length) powertrain = POWERTRAIN_ICE;
+  let basis = 'none';
 
-  offered.sort();
-  evFeatures.sort();
-  iceFeatures.sort();
+  if (evAttributes.length) {
+    powertrain = POWERTRAIN_EV;
+    basis = 'reading';
+  } else if (iceAttributes.length) {
+    powertrain = POWERTRAIN_ICE;
+    basis = 'reading';
+  } else if (evFeatures.length) {
+    powertrain = POWERTRAIN_EV;
+    basis = 'command';
+  } else if (iceFeatures.length) {
+    powertrain = POWERTRAIN_ICE;
+    basis = 'command';
+  }
 
-  return { powertrain, evFeatures, iceFeatures, offered };
+  // What the Homey app's shipped rule makes of the same car, so a disagreement
+  // is visible here rather than discovered as a battery on a diesel.
+  const app = powertrainMarkers(features, APP_EV_MARKERS);
+  let appPowertrain = POWERTRAIN_UNKNOWN;
+  if (app.evFeatures.length) appPowertrain = POWERTRAIN_EV;
+  else if (app.iceFeatures.length) appPowertrain = POWERTRAIN_ICE;
+
+  return {
+    powertrain,
+    basis,
+    evFeatures,
+    iceFeatures,
+    evAttributes,
+    iceAttributes,
+    offered,
+    appPowertrain,
+    appEvFeatures: app.evFeatures
+  };
 }
 
 /**
@@ -156,29 +263,46 @@ function renderPowertrain(assessment, errors = []) {
   const evidenceEl = document.getElementById('powertrain-evidence');
   if (!labelEl || !meaningEl || !evidenceEl) return;
 
-  const { powertrain, evFeatures, iceFeatures, offered } = assessment;
+  const { powertrain, basis, evFeatures, iceFeatures, evAttributes, iceAttributes, offered,
+    appPowertrain, appEvFeatures } = assessment;
 
   labelEl.textContent = POWERTRAIN_LABELS[powertrain];
   labelEl.className = `badge badge-powertrain badge-powertrain-${powertrain}`;
   meaningEl.textContent = POWERTRAIN_CONSEQUENCES[powertrain];
 
-  const deciding = evFeatures.length ? evFeatures : iceFeatures;
-  const kind = evFeatures.length ? 'electric' : 'combustion';
-
+  const codes = names => names.map(n => `<code>${escapeHtml(n)}</code>`).join(', ');
   const parts = [];
-  if (deciding.length) {
-    parts.push(`<div class="note"><strong>Decided by ${deciding.length} ${kind} command(s):</strong> `
-      + deciding.map(f => `<code>${escapeHtml(f)}</code>`).join(', ') + '</div>');
+
+  if (basis === 'reading') {
+    const decided = evAttributes.length ? evAttributes : iceAttributes;
+    const only = evAttributes.length
+      ? 'values only a car with a high-voltage battery sends'
+      : 'values only a car with a fuel tank sends';
+    parts.push(`<div class="note"><strong>Decided by what your car reported:</strong> ${codes(decided)} - ${only}.</div>`);
+    if (evAttributes.length && iceAttributes.length) {
+      parts.push(`<div class="note">It reports fuel as well (${codes(iceAttributes)}) - that is a plug-in `
+        + 'hybrid, and keeping every capability is the right answer for one.</div>');
+    }
+  } else if (basis === 'command') {
+    const decided = evFeatures.length ? evFeatures : iceFeatures;
+    const kind = evFeatures.length ? 'electric' : 'combustion';
+    parts.push(`<div class="note"><strong>Your car has reported no fuel or battery reading yet, so this `
+      + `is read from ${decided.length} ${kind} command(s) Mercedes says it accepts:</strong> ${codes(decided)}.</div>`);
+  } else {
+    parts.push(`<div class="note">Your car has reported no fuel or battery reading, and of the `
+      + `${offered.length} command(s) Mercedes lists for it, none is a charging or engine command.</div>`);
   }
-  if (evFeatures.length && iceFeatures.length) {
-    parts.push('<div class="note">Your car also offers combustion commands ('
-      + iceFeatures.map(f => `<code>${escapeHtml(f)}</code>`).join(', ')
-      + ') - that combination is a plug-in hybrid, and the app keeps the electric capabilities for it.</div>');
+
+  // The panel used to speak for the Homey app. It cannot while the app still
+  // reads ZEV preconditioning - a heater every diesel has - as electric.
+  if (appPowertrain !== powertrain) {
+    parts.push('<div class="note other-source"><strong>Your Homey device may disagree.</strong> The app '
+      + `assesses this car as <em>${escapeHtml(POWERTRAIN_LABELS[appPowertrain])}</em>`
+      + (appEvFeatures.length ? ` (from ${codes(appEvFeatures)})` : '')
+      + ' - it reads the command list only, and counts ZEV preconditioning as electric even though '
+      + 'petrol and diesel cars offer it for remote climate. Tracked in GitHub issue #79.</div>');
   }
-  if (!deciding.length) {
-    parts.push(`<div class="note">Mercedes listed ${offered.length} available command(s) for your car, `
-      + 'none of which the app recognises as electric or combustion.</div>');
-  }
+
   for (const error of errors) {
     parts.push(`<div class="note other-source">${escapeHtml(error)}</div>`);
   }
@@ -190,4 +314,77 @@ function renderPowertrain(assessment, errors = []) {
   }
 
   evidenceEl.innerHTML = parts.join('');
+}
+
+/**
+ * The powertrain assessment as text, for the clipboard exports.
+ *
+ * A wrong verdict is only diagnosable from what the two endpoints actually
+ * answered: the merged map has already lost `isAvailable` for
+ * CHARGE_PROGRAM_CONFIGURE (`api.getVehicleFeatures()` overwrites it with
+ * whether a MAX_SOC parameter is declared), so a car classified electric off
+ * that one key looks identical in the merged map to a car that really can
+ * charge. Both endpoints therefore go into the export as they arrived, and an
+ * owner sending one export answers the question without being asked for more.
+ *
+ * @param {Object} [state] - what loadPowertrain() kept from the assessment
+ * @returns {string}
+ */
+function powertrainExportText(state) {
+  const lines = ['', '=== Powertrain assessment ==='];
+
+  if (!state) {
+    lines.push('Not assessed - no vehicle data loaded in this session.', '');
+    return lines.join('\n');
+  }
+
+  const { assessment, capabilityFeatures, commands, errors = [] } = state;
+
+  if (!assessment) {
+    lines.push('Not assessed: ' + (errors.join('; ') || 'unknown reason'), '');
+    return lines.join('\n');
+  }
+
+  const { powertrain, basis, evFeatures, iceFeatures, evAttributes, iceAttributes,
+    appPowertrain, appEvFeatures } = assessment;
+  lines.push(`Verdict: ${POWERTRAIN_LABELS[powertrain]} (${powertrain})`);
+  lines.push(`Decided by: ${basis}`);
+  lines.push(`Electric attributes reported: ${(evAttributes || []).join(', ') || '(none)'}`);
+  lines.push(`Combustion attributes reported: ${(iceAttributes || []).join(', ') || '(none)'}`);
+  lines.push(`Matched electric markers: ${evFeatures.join(', ') || '(none)'}`);
+  lines.push(`Matched combustion markers: ${iceFeatures.join(', ') || '(none)'}`);
+  lines.push(`Homey app's own rule would say: ${POWERTRAIN_LABELS[appPowertrain]} (${appPowertrain})`
+    + (appEvFeatures && appEvFeatures.length ? ` from ${appEvFeatures.join(', ')}` : ''));
+  for (const error of errors) lines.push(`Endpoint error: ${error}`);
+
+  lines.push('', '--- /v1/vehicle/{vin}/capabilities -> features ---');
+  if (capabilityFeatures) {
+    const keys = Object.keys(capabilityFeatures).sort();
+    if (!keys.length) lines.push('(empty)');
+    for (const key of keys) lines.push(`${key} = ${JSON.stringify(capabilityFeatures[key])}`);
+  } else {
+    lines.push('(not returned for this vehicle)');
+  }
+
+  // isAvailable and the parameter names both matter: they are the two halves
+  // the merge collapses into one boolean.
+  lines.push('', '--- /v1/vehicle/{vin}/capabilities/commands ---');
+  if (commands) {
+    if (!commands.length) lines.push('(empty)');
+    for (const command of [...commands].sort((a, b) => a.commandName.localeCompare(b.commandName))) {
+      const params = command.parameters.length ? command.parameters.join(',') : '-';
+      lines.push(`${command.commandName} isAvailable=${command.isAvailable} parameters=${params}`);
+    }
+  } else {
+    lines.push('(not returned for this vehicle)');
+  }
+
+  lines.push('', '--- merged feature map the verdict was read from ---');
+  const merged = state.features || {};
+  const mergedKeys = Object.keys(merged).sort();
+  if (!mergedKeys.length) lines.push('(empty)');
+  for (const key of mergedKeys) lines.push(`${key} = ${merged[key] === true}`);
+
+  lines.push('');
+  return lines.join('\n');
 }
