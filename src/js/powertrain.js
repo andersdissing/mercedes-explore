@@ -191,3 +191,70 @@ function renderPowertrain(assessment, errors = []) {
 
   evidenceEl.innerHTML = parts.join('');
 }
+
+/**
+ * The powertrain assessment as text, for the clipboard exports.
+ *
+ * A wrong verdict is only diagnosable from what the two endpoints actually
+ * answered: the merged map has already lost `isAvailable` for
+ * CHARGE_PROGRAM_CONFIGURE (`api.getVehicleFeatures()` overwrites it with
+ * whether a MAX_SOC parameter is declared), so a car classified electric off
+ * that one key looks identical in the merged map to a car that really can
+ * charge. Both endpoints therefore go into the export as they arrived, and an
+ * owner sending one export answers the question without being asked for more.
+ *
+ * @param {Object} [state] - what loadPowertrain() kept from the assessment
+ * @returns {string}
+ */
+function powertrainExportText(state) {
+  const lines = ['', '=== Powertrain assessment ==='];
+
+  if (!state) {
+    lines.push('Not assessed - no vehicle data loaded in this session.', '');
+    return lines.join('\n');
+  }
+
+  const { assessment, capabilityFeatures, commands, errors = [] } = state;
+
+  if (!assessment) {
+    lines.push('Not assessed: ' + (errors.join('; ') || 'unknown reason'), '');
+    return lines.join('\n');
+  }
+
+  const { powertrain, evFeatures, iceFeatures } = assessment;
+  lines.push(`Verdict: ${POWERTRAIN_LABELS[powertrain]} (${powertrain})`);
+  lines.push(`Matched electric markers: ${evFeatures.join(', ') || '(none)'}`);
+  lines.push(`Matched combustion markers: ${iceFeatures.join(', ') || '(none)'}`);
+  for (const error of errors) lines.push(`Endpoint error: ${error}`);
+
+  lines.push('', '--- /v1/vehicle/{vin}/capabilities -> features ---');
+  if (capabilityFeatures) {
+    const keys = Object.keys(capabilityFeatures).sort();
+    if (!keys.length) lines.push('(empty)');
+    for (const key of keys) lines.push(`${key} = ${JSON.stringify(capabilityFeatures[key])}`);
+  } else {
+    lines.push('(not returned for this vehicle)');
+  }
+
+  // isAvailable and the parameter names both matter: they are the two halves
+  // the merge collapses into one boolean.
+  lines.push('', '--- /v1/vehicle/{vin}/capabilities/commands ---');
+  if (commands) {
+    if (!commands.length) lines.push('(empty)');
+    for (const command of [...commands].sort((a, b) => a.commandName.localeCompare(b.commandName))) {
+      const params = command.parameters.length ? command.parameters.join(',') : '-';
+      lines.push(`${command.commandName} isAvailable=${command.isAvailable} parameters=${params}`);
+    }
+  } else {
+    lines.push('(not returned for this vehicle)');
+  }
+
+  lines.push('', '--- merged feature map the verdict was read from ---');
+  const merged = state.features || {};
+  const mergedKeys = Object.keys(merged).sort();
+  if (!mergedKeys.length) lines.push('(empty)');
+  for (const key of mergedKeys) lines.push(`${key} = ${merged[key] === true}`);
+
+  lines.push('');
+  return lines.join('\n');
+}

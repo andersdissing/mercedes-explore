@@ -233,7 +233,21 @@ async function copyRawDataToClipboard() {
     }
   }
 
+  output += powertrainExport();
+
   await copyToClipboard(output, 'copy-raw-btn', 'Raw data copied to clipboard');
+}
+
+/**
+ * The powertrain block both raw exports carry.
+ *
+ * Whichever raw button an owner presses, the paste has to answer why their car
+ * was classified the way it was - that is the whole point of asking them for
+ * an export - so neither button is allowed to be the one that leaves it out.
+ */
+function powertrainExport() {
+  if (typeof powertrainExportText !== 'function') return '';
+  return powertrainExportText(typeof currentPowertrain !== 'undefined' ? currentPowertrain : null);
 }
 
 /**
@@ -261,11 +275,18 @@ async function copyToClipboard(text, btnId, logMessage) {
  * Copy all raw API key/value pairs to clipboard
  */
 async function copyRawApiToClipboard() {
-  let output = '';
+  // Which build produced the export: a report from a stale page has cost a
+  // round trip before.
+  const build = (typeof PROXY_CONFIG !== 'undefined' && PROXY_CONFIG.build) || 'unknown';
+  let output = `# Mercedes-Benz Data Explorer (build ${build})\n\n`;
+
   const keys = Object.keys(currentVehicleData).sort();
   for (const key of keys) {
     output += `${key} = ${formatRaw(currentVehicleData[key])}\n`;
   }
+
+  output += powertrainExport();
+
   await copyToClipboard(output, 'copy-raw-api-btn', 'Raw API values copied to clipboard');
 }
 

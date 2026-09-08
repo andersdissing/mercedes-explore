@@ -7,6 +7,7 @@ let api = null;
 let parser = null;
 let currentVehicles = [];
 let currentVehicleData = {};
+let currentPowertrain = null;
 
 /**
  * Append a timestamped message to the progress log
@@ -180,6 +181,7 @@ async function loadVehicleData(vin) {
  */
 async function loadPowertrain(vin) {
   const card = document.getElementById('powertrain-card');
+  currentPowertrain = null;
 
   // js/powertrain.js is not there: an index.html cached from before the panel
   // existed still loads this app.js, and asking it for a verdict would
@@ -192,13 +194,19 @@ async function loadPowertrain(vin) {
 
   try {
     progressLog('Assessing powertrain from vehicle capabilities...');
-    const { features, errors } = await api.getVehicleFeatures(vin);
+    const { features, errors, capabilityFeatures, commands } = await api.getVehicleFeatures(vin);
     const assessment = assessPowertrain(features);
+
+    // Kept for the exports: an owner reporting a wrong verdict sends what the
+    // endpoints answered, not just the verdict itself.
+    currentPowertrain = { assessment, features, capabilityFeatures, commands, errors };
+
     renderPowertrain(assessment, errors);
     progressLog(`Powertrain assessed as: ${POWERTRAIN_LABELS[assessment.powertrain]}`);
   } catch (error) {
     // The tables are already on screen and stay there; only the verdict is lost.
     if (card) card.classList.add('hidden');
+    currentPowertrain = { errors: [error.message] };
     progressLog(`Powertrain not assessed: ${error.message}`);
   }
 }
