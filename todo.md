@@ -124,26 +124,52 @@ command vocabulary is one the markers miss, or whether the endpoints answered at
 
 **Unknowns — resolve before/while implementing**
 
-- [ ] **Do both endpoints answer for a normal account?** PR #80 assumes either can 401; that has not
-      been seen on a real car yet. A `Failed to fetch capabilities: 401` line in the panel is the
-      evidence, and the `unknown` verdict it produces is the one that leaves a diesel alone but also
-      leaves it with the electric capabilities.
-- [ ] **Does the diesel in #79 classify as `ice`?** It should list `AUXHEAT_*` / `ENGINE_*` and no
-      charge command. Ask the reporter for an Explorer screenshot of the panel.
-- [ ] **Marker coverage.** `CHARGE`, `CHARGING`, `ZEV`, `MAX_SOC`, `HV_BATTERY` vs. `AUXHEAT`,
-      `AUX_HEAT`, `ENGINE_START`, `ENGINE_STOP`, `TANK`, `FUEL`. A car that offers only commands
-      outside both lists lands on `unknown`; collect those command names from Explorer reports and
-      widen the lists in the Homey app (and here) rather than guessing.
+**Answered on a real car (2026-09-08).** A reporting owner's diesel came back **electric**, and their
+export says exactly why. What it settles, and what the Homey app still has to change:
+
+- **`ZEV` is not electric evidence.** That diesel offers all four ZEV commands —
+  `ZEV_PRECONDITIONING_START` / `_STOP`, `ZEV_PRECONDITION_CONFIGURE` / `_SEATS`, all
+  `isAvailable=true` — because Mercedes uses them for remote pre-entry climate on combustion cars
+  (`precondNow`, `remoteSettingTemperature`, `remoteSettingPersonalizedTemperature` all true). They
+  were the *only* markers that matched. **Drop `ZEV` from `EV_MARKERS` in `lib/powertrain.js`.**
+- **Commands alone cannot classify every car.** On the same car every combustion marker is false too
+  — no auxheat, no remote engine start (`AUXHEAT_* = false`, `ENGINE_START/STOP = false`), and every
+  charging command and feature is false (`CHARGING_CONFIGURE`, `CHARGE_PROGRAM_CONFIGURE`,
+  `dcCharging`, `fastCharging`, `bidirectionalCharging`, `HVBATTERY_*`). Dropping `ZEV` alone moves
+  it to `unknown`, not `ice`.
+- **The readings decide it.** That car reports `rangeliquid`, `tanklevelpercent` and `tankLevelAdBlue`
+  (AdBlue is diesel SCR) and no `soc`/`rangeelectric`. PR #80's premise — that the car's own data
+  cannot decide this — holds only for *absence*; presence is proof. The Explorer now classifies
+  readings first, commands second (`src/js/powertrain.js`), which puts this car on `ice`.
+- **`HV_BATTERY` never matches.** Mercedes sends `HVBATTERY_START_CONDITIONING`, without the
+  underscore, so the marker as written cannot fire. The Explorer matches `HVBATTERY` as well.
+- **`CHARGE_PROGRAM_CONFIGURE` discards `isAvailable`** in `getVehicleFeatures()` — it is overwritten
+  with whether a `MAX_SOC` parameter is declared. Not what bit this car (the command declares no
+  parameters), but it will mark a car electric off an unavailable command, and it is the same line in
+  `lib/api.js` and `src/js/api.js`.
+
+Still open:
+
+- [ ] **Do both endpoints answer for a normal account?** Both answered for this owner, so the 401
+      path PR #80 assumes has still not been seen on a real car.
+- [ ] **Marker coverage for a real EV.** No BEV or PHEV export collected yet: the electric side of
+      the command rule (`CHARGING_CONFIGURE`, `dcCharging`, `CHARGE_*`) is still unconfirmed against
+      a car that actually charges.
 
 ### Implementation checklist
 
-- [ ] **Homey app**: merge PR #80 after verifying on a real car — a diesel loses `measure_battery`
-      and raises no alert, a BEV keeps its capabilities, and the **Powertrain** setting overrides
-      detection in both directions.
+- [ ] **Homey app**: PR #80 cannot merge as it stands — it classifies the car in #79 as electric.
+      Port the rule this Explorer now runs (`src/js/powertrain.js`): readings first, commands second,
+      no `ZEV`, `HVBATTERY` spelled as sent. `classifyFromFeatures()` needs the parsed attributes,
+      which means passing them from `device.js`. The uncommitted `batteryReadingSeen` gate on
+      `capabilityPlan()` in that repo is the same insight applied at the alert instead of at the
+      verdict: it silences the alert but still leaves a diesel holding a battery tile at 0%.
+- [ ] **Verify on a real car** — the #79 reporter re-running the Explorer should now see
+      *Petrol / diesel*, and after the app change their Homey device should lose `measure_battery`.
 - [ ] **Close the loop in this Explorer** — drop the *Proposed* badge on the Powertrain panel
       (`powertrain-proposed` in `src/index.html`, `POWERTRAIN_ISSUE` in `src/js/powertrain.js`), bump
-      `HOMEY_APP_VERSION`, keep `EV_MARKERS` / `ICE_MARKERS` / `EV_CAPABILITIES` in step with
-      `lib/powertrain.js`, and delete this section.
+      `HOMEY_APP_VERSION`, drop `APP_EV_MARKERS` and the "your Homey device may disagree" note once
+      the app runs the same rule, and delete this section.
 
 ### Timeline
 
@@ -152,3 +178,7 @@ command vocabulary is one the markers miss, or whether the endpoints answered at
   and removed per verdict
 - 2026-08-31 — Explorer shows a *Proposed* **Powertrain** panel running the same classification, so
   owners can report the verdict and the commands behind it
+- 2026-09-08 — a reporting owner's diesel comes back *Electric / plug-in hybrid*; their export names
+  the four available `ZEV_*` commands as the only markers that matched
+- 2026-09-08 — Explorer switches to readings first and drops `ZEV`; that car now assesses as
+  *Petrol / diesel*, and the panel says where the Homey app still disagrees

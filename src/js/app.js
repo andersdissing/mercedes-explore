@@ -195,7 +195,10 @@ async function loadPowertrain(vin) {
   try {
     progressLog('Assessing powertrain from vehicle capabilities...');
     const { features, errors, capabilityFeatures, commands } = await api.getVehicleFeatures(vin);
-    const assessment = assessPowertrain(features);
+
+    // The readings decide when the car has sent any, so the parsed attributes
+    // go in beside the command list.
+    const assessment = assessPowertrain(features, currentVehicleData);
 
     // Kept for the exports: an owner reporting a wrong verdict sends what the
     // endpoints answered, not just the verdict itself.
